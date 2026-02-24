@@ -34,11 +34,44 @@ class _DashboardPageState extends State<DashboardPage> {
     super.dispose();
   }
 
+  Future<void> _handleRefresh() async {
+    // Simulate refresh delay
+    await Future.delayed(const Duration(seconds: 1));
+    // Force controller to reload data
+    _controller.notifyListeners();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Data berhasil diperbarui'),
+          duration: Duration(seconds: 1),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
+  void _handleSwipe(DragEndDetails details) {
+    // Swipe left to right -> go to Kontrol (next page)
+    if (details.primaryVelocity! < 0) {
+      // Swipe left
+      Navigator.pushReplacement(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              const ControlPage(),
+          transitionDuration: Duration.zero,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.orange,
-      appBar: AppBar(
+    return GestureDetector(
+      onHorizontalDragEnd: _handleSwipe,
+      child: Scaffold(
+        backgroundColor: Colors.orange,
+        appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
         leading: Padding(
@@ -82,234 +115,240 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            // Tab Bar
-            Container(
+      body: Column(
+        children: [
+          // Tab Bar with white background and rounded bottom
+          Container(
+            color: Colors.white,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildTab('Dashboard', 0),
+                _buildTab('Kontrol', 1),
+                _buildTab('Data', 2),
+              ],
+            ),
+          ),
+
+          const Divider(height: 1),
+
+          // White Background Container for Status Perangkat and Mode Toggle
+          Container(
+            decoration: const BoxDecoration(
               color: Colors.white,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildTab('Dashboard', 0),
-                  _buildTab('Kontrol', 1),
-                  _buildTab('Data', 2),
-                ],
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(24),
+                bottomRight: Radius.circular(24),
               ),
             ),
-
-            const Divider(height: 1),
-
-            // White Background Container for Status Perangkat and Mode Toggle
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(24),
-                  bottomRight: Radius.circular(24),
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Status Perangkat
+                const Text(
+                  'Status Perangkat',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
-              ),
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Status Perangkat
-                  const Text(
-                    'Status Perangkat',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 16),
+                const SizedBox(height: 16),
 
-                  // Device Status Icons
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                // Device Status Icons
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildDeviceStatus(
+                      'Lampu',
+                      Icons.lightbulb,
+                      _controller.data.lampStatus ? 'Hidup' : 'Mati',
+                      _controller.data.lampStatus,
+                    ),
+                    _buildDeviceStatus(
+                      'Kipas',
+                      _controller.data.fanStatus
+                          ? 'assets/kipas_on.png'
+                          : 'assets/kipas.png',
+                      _controller.data.fanStatus ? 'Hidup' : 'Mati',
+                      _controller.data.fanStatus,
+                    ),
+                    _buildDeviceStatus(
+                      'Mode',
+                      _controller.data.isAutoMode
+                          ? Icons.auto_mode
+                          : Icons.pan_tool,
+                      _controller.data.currentMode,
+                      true,
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 24),
+
+                // Mode Otomatis Toggle
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.orange,
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      _buildDeviceStatus(
-                        'Lampu',
-                        Icons.lightbulb,
-                        _controller.data.lampStatus ? 'Hidup' : 'Mati',
-                        _controller.data.lampStatus,
+                      Switch(
+                        value: _controller.data.isAutoMode,
+                        onChanged: (value) {
+                          _controller.toggleAutoMode(value);
+                        },
+                        activeColor: Colors.white,
+                        activeTrackColor: Colors.orange.shade700,
                       ),
-                      _buildDeviceStatus(
-                        'Kipas',
-                        _controller.data.fanStatus
-                            ? 'assets/kipas_on.png'
-                            : 'assets/kipas.png',
-                        _controller.data.fanStatus ? 'Hidup' : 'Mati',
-                        _controller.data.fanStatus,
-                      ),
-                      _buildDeviceStatus(
-                        'Mode',
+                      const SizedBox(width: 8),
+                      Text(
                         _controller.data.isAutoMode
-                            ? Icons.auto_mode
-                            : Icons.pan_tool,
-                        _controller.data.currentMode,
-                        true,
+                            ? 'Mode Otomatis'
+                            : 'Mode Manual',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ],
                   ),
-
-                  const SizedBox(height: 24),
-
-                  // Mode Otomatis Toggle
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.orange,
-                      borderRadius: BorderRadius.circular(25),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Switch(
-                          value: _controller.data.isAutoMode,
-                          onChanged: (value) {
-                            _controller.toggleAutoMode(value);
-                          },
-                          activeColor: Colors.white,
-                          activeTrackColor: Colors.orange.shade700,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          _controller.data.isAutoMode
-                              ? 'Mode Otomatis'
-                              : 'Mode Manual',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
+          ),
 
-            // Content with Orange Background
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Orange Container for Cards
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.orange,
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Halaman Utama',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w500,
+          // Scrollable Content with Orange Background
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _handleRefresh,
+              color: Colors.orange,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Orange Container for Cards
+                      Container(
+                        decoration: BoxDecoration(
+                        color: Colors.orange,
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Halaman Utama',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 16),
+                          const SizedBox(height: 16),
 
-                        // Temperature and Humidity Cards
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildInfoCard(
-                                'Suhu',
-                                '${_controller.data.temperature.toStringAsFixed(0)}°C',
-                                Icons.thermostat_outlined,
-                                Colors.red,
-                                _controller.data.temperature / 50,
+                          // Temperature and Humidity Cards
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildInfoCard(
+                                  'Suhu',
+                                  '${_controller.data.temperature.toStringAsFixed(0)}°C',
+                                  Icons.thermostat_outlined,
+                                  Colors.red,
+                                  _controller.data.temperature / 50,
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _buildInfoCard(
-                                'Kelembapan',
-                                '${_controller.data.humidity.toStringAsFixed(0)}%',
-                                Icons.water_drop_outlined,
-                                Colors.blue,
-                                _controller.data.humidity / 100,
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildInfoCard(
+                                  'Kelembapan',
+                                  '${_controller.data.humidity.toStringAsFixed(0)}%',
+                                  Icons.water_drop_outlined,
+                                  Colors.blue,
+                                  _controller.data.humidity / 100,
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
+                            ],
+                          ),
 
-                        const SizedBox(height: 12),
+                          const SizedBox(height: 12),
 
-                        // Chicken Age and Mode Cards
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildAgeCard(
-                                'Umur Ayam',
-                                '${_controller.data.chickenAge} Minggu',
-                                Icons.calendar_today_outlined,
-                                Colors.green,
-                                _controller.data.chickenAge / 10,
+                          // Chicken Age and Mode Cards
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildAgeCard(
+                                  'Umur Ayam',
+                                  '${_controller.data.chickenAge} Minggu',
+                                  Icons.calendar_today_outlined,
+                                  Colors.green,
+                                  _controller.data.chickenAge / 10,
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _buildModeCard(
-                                'Mode',
-                                _controller.data.currentMode,
-                                _controller.data.isAutoMode
-                                    ? Icons.auto_mode
-                                    : Icons.pan_tool,
-                                Colors.orange,
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildModeCard(
+                                  'Mode',
+                                  _controller.data.currentMode,
+                                  _controller.data.isAutoMode
+                                      ? Icons.auto_mode
+                                      : Icons.pan_tool,
+                                  Colors.orange,
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ],
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
 
-                  const SizedBox(height: 24),
-                ],
-              ),
-            ),
-
-            // Bottom Navigation / Footer
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  topRight: Radius.circular(24),
+                    const SizedBox(height: 24),
+                  ],
                 ),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildBottomNavItemWithNav(
-                    Icons.bar_chart,
-                    'Grafik',
-                    false,
-                    () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const StatisticsPage(),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildBottomNavItem(Icons.history, 'Riwayat', false),
-                  _buildBottomNavItem(Icons.dangerous, 'Kematian', false),
-                ],
-              ),
             ),
+          ),
+          ),
+        ],
+        ),
+        bottomNavigationBar: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _buildBottomNavItemWithNav(
+              Icons.bar_chart,
+              'Grafik',
+              false,
+              () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const StatisticsPage(),
+                  ),
+                );
+              },
+            ),
+            _buildBottomNavItem(Icons.history, 'Riwayat', false),
+            _buildBottomNavItem(Icons.dangerous, 'Kematian', false),
           ],
         ),
+      ),
       ),
     );
   }

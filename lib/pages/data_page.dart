@@ -34,11 +34,43 @@ class _DataPageState extends State<DataPage> {
     super.dispose();
   }
 
+  Future<void> _handleRefresh() async {
+    // Simulate refresh delay
+    await Future.delayed(const Duration(seconds: 1));
+    // Force controller to reload data
+    _controller.notifyListeners();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Data berhasil diperbarui'),
+          duration: Duration(seconds: 1),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
+  void _handleSwipe(DragEndDetails details) {
+    if (details.primaryVelocity! > 0) {
+      // Swipe right -> go back to Kontrol (previous page)
+      Navigator.pushReplacement(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              const ControlPage(),
+          transitionDuration: Duration.zero,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.orange,
-      appBar: AppBar(
+    return GestureDetector(
+      onHorizontalDragEnd: _handleSwipe,
+      child: Scaffold(
+        backgroundColor: Colors.orange,
+        appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
         leading: Padding(
@@ -109,13 +141,17 @@ class _DataPageState extends State<DataPage> {
 
           // Content with orange background
           Expanded(
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Last Updated Badge
+            child: RefreshIndicator(
+              onRefresh: _handleRefresh,
+              color: Colors.orange,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Last Updated Badge
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -237,7 +273,12 @@ class _DataPageState extends State<DataPage> {
                               ),
                               TextButton(
                                 onPressed: () {
-                                  // Navigate to all death records
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const DeathPage(),
+                                    ),
+                                  );
                                 },
                                 child: const Text(
                                   'Lihat Semua',
@@ -292,6 +333,7 @@ class _DataPageState extends State<DataPage> {
               ),
             ),
           ),
+          ),
         ],
       ),
       bottomNavigationBar: Container(
@@ -316,6 +358,7 @@ class _DataPageState extends State<DataPage> {
             _buildBottomNavItem(Icons.dangerous, 'Kematian', false),
           ],
         ),
+      ),
       ),
     );
   }

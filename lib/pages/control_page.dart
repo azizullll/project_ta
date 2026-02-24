@@ -34,11 +34,53 @@ class _ControlPageState extends State<ControlPage> {
     super.dispose();
   }
 
+  Future<void> _handleRefresh() async {
+    // Simulate refresh delay
+    await Future.delayed(const Duration(seconds: 1));
+    // Force controller to reload data
+    _controller.notifyListeners();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Data berhasil diperbarui'),
+          duration: Duration(seconds: 1),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
+  void _handleSwipe(DragEndDetails details) {
+    if (details.primaryVelocity! < 0) {
+      // Swipe left -> go to Data (next page)
+      Navigator.pushReplacement(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              const DataPage(),
+          transitionDuration: Duration.zero,
+        ),
+      );
+    } else if (details.primaryVelocity! > 0) {
+      // Swipe right -> go back to Dashboard (previous page)
+      Navigator.pushReplacement(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              const DashboardPage(),
+          transitionDuration: Duration.zero,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.orange,
-      appBar: AppBar(
+    return GestureDetector(
+      onHorizontalDragEnd: _handleSwipe,
+      child: Scaffold(
+        backgroundColor: Colors.orange,
+        appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
         leading: Padding(
@@ -82,198 +124,205 @@ class _ControlPageState extends State<ControlPage> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            // Tab Bar
-            Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(24),
-                  bottomRight: Radius.circular(24),
-                ),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _buildTab('Dashboard', 0),
-                      _buildTab('Kontrol', 1),
-                      _buildTab('Data', 2),
-                    ],
-                  ),
-                  const Divider(height: 1),
-                ],
+      body: Column(
+        children: [
+          // Tab Bar with white background and rounded bottom
+          Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(24),
+                bottomRight: Radius.circular(24),
               ),
             ),
-
-            // Content
-            Container(
-              color: Colors.orange,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    // Kontrol Perangkat Card
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Kontrol Perangkat',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                'Mode:',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              GestureDetector(
-                                onTap: () {
-                                  _controller.toggleAutoMode(
-                                    !_controller.data.isAutoMode,
-                                  );
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 24,
-                                    vertical: 12,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.orange,
-                                    borderRadius: BorderRadius.circular(25),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        _controller.data.isAutoMode
-                                            ? Icons.auto_mode
-                                            : Icons.pan_tool,
-                                        color: Colors.white,
-                                        size: 20,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        _controller.data.isAutoMode
-                                            ? 'Otomatis'
-                                            : 'Manual',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Status Perangkat Title
-                    const Text(
-                      'Status Perangkat',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Lampu Card
-                    _buildDeviceCard(
-                      'Lampu',
-                      'Digunakan untuk mengatur kelembapan kandang',
-                      Icons.lightbulb,
-                      _controller.data.lampStatus,
-                      (value) => _controller.toggleLamp(value),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // Kipas Card
-                    _buildDeviceCard(
-                      'Kipas',
-                      'Digunakan untuk mengatur suhu kandang',
-                      _controller.data.fanStatus
-                          ? 'assets/kipas_on.png'
-                          : 'assets/kipas.png',
-                      _controller.data.fanStatus,
-                      (value) => _controller.toggleFan(value),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Catatan Card
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.assignment_outlined,
-                                color: Colors.black87,
-                                size: 24,
-                              ),
-                              const SizedBox(width: 8),
-                              const Text(
-                                'Catatan',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          _buildNoteItem(
-                            'Mode Otomatis Perangkat akan bekerja secara otomatis sesuai dengan data sensor',
-                          ),
-                          const SizedBox(height: 12),
-                          _buildNoteItem(
-                            'Mode Manual: Anda dapat mengontrol perangkat secara manual melalui tombol switch',
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 80),
+                    _buildTab('Dashboard', 0),
+                    _buildTab('Kontrol', 1),
+                    _buildTab('Data', 2),
                   ],
                 ),
+                const Divider(height: 1),
+              ],
+            ),
+          ),
+
+          // Scrollable Content with Orange Background
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _handleRefresh,
+              color: Colors.orange,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Container(
+                  color: Colors.orange,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Kontrol Perangkat Card
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Kontrol Perangkat',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Mode:',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                GestureDetector(
+                                  onTap: () {
+                                    _controller.toggleAutoMode(
+                                      !_controller.data.isAutoMode,
+                                    );
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 24,
+                                      vertical: 12,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.orange,
+                                      borderRadius: BorderRadius.circular(25),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          _controller.data.isAutoMode
+                                              ? Icons.auto_mode
+                                              : Icons.pan_tool,
+                                          color: Colors.white,
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          _controller.data.isAutoMode
+                                              ? 'Otomatis'
+                                              : 'Manual',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Status Perangkat Title
+                      const Text(
+                        'Status Perangkat',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Lampu Card
+                      _buildDeviceCard(
+                        'Lampu',
+                        'Digunakan untuk mengatur kelembapan kandang',
+                        Icons.lightbulb,
+                        _controller.data.lampStatus,
+                        (value) => _controller.toggleLamp(value),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // Kipas Card
+                      _buildDeviceCard(
+                        'Kipas',
+                        'Digunakan untuk mengatur suhu kandang',
+                        _controller.data.fanStatus
+                            ? 'assets/kipas_on.png'
+                            : 'assets/kipas.png',
+                        _controller.data.fanStatus,
+                        (value) => _controller.toggleFan(value),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Catatan Card
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.assignment_outlined,
+                                  color: Colors.black87,
+                                  size: 24,
+                                ),
+                                const SizedBox(width: 8),
+                                const Text(
+                                  'Catatan',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            _buildNoteItem(
+                              'Mode Otomatis Perangkat akan bekerja secara otomatis sesuai dengan data sensor',
+                            ),
+                            const SizedBox(height: 12),
+                            _buildNoteItem(
+                              'Mode Manual: Anda dapat mengontrol perangkat secara manual melalui tombol switch',
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+                    ],
+                  ),
+                ),
               ),
             ),
-          ],
-        ),
+          ),
+          )
+        ],
       ),
       bottomNavigationBar: Container(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
@@ -297,6 +346,7 @@ class _ControlPageState extends State<ControlPage> {
             _buildBottomNavItem(Icons.dangerous, 'Kematian', false),
           ],
         ),
+      ),
       ),
     );
   }

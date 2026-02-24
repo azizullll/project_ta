@@ -252,22 +252,18 @@ class _StatisticsPageState extends State<StatisticsPage> {
     return Scaffold(
       backgroundColor: Colors.orange,
       appBar: AppBar(
-        backgroundColor: Colors.orange,
+        backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
           onPressed: () {
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (context) => const DashboardPage()),
-              (route) => false,
-            );
+            Navigator.pop(context);
           },
         ),
         title: const Text(
           'Statistik Penggunaan Perangkat',
           style: TextStyle(
-            color: Colors.white,
+            color: Colors.black,
             fontSize: 18,
             fontWeight: FontWeight.bold,
           ),
@@ -275,114 +271,120 @@ class _StatisticsPageState extends State<StatisticsPage> {
       ),
       body: Column(
         children: [
-          // Summary Cards
+          // Summary Cards and Period Filter - White Section with rounded bottom
           Container(
-            color: Colors.orange,
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-            child: Row(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(24),
+                bottomRight: Radius.circular(24),
+              ),
+            ),
+            padding: const EdgeInsets.all(16),
+            child: Column(
               children: [
-                Expanded(
-                  child: _buildSummaryCard(
-                    'Total Operasi\nPerangkat',
-                    '168 Jam',
-                    Icons.access_time,
-                    Colors.blue.shade400,
-                  ),
+                // Summary Cards
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildSummaryCard(
+                        'Total Operasi\nPerangkat',
+                        '168 Jam',
+                        Icons.access_time,
+                        Colors.blue.shade400,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildSummaryCard(
+                        'Penggunaan\nListrik',
+                        '112 Jam',
+                        Icons.flash_on,
+                        Colors.orange.shade700,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildSummaryCard(
+                        'Penggunaan\nAki',
+                        '56 Jam',
+                        Icons.battery_charging_full,
+                        Colors.green.shade400,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildSummaryCard(
-                    'Penggunaan\nListrik',
-                    '112 Jam',
-                    Icons.flash_on,
-                    Colors.orange.shade300,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildSummaryCard(
-                    'Penggunaan\nAki',
-                    '56 Jam',
-                    Icons.battery_charging_full,
-                    Colors.green.shade400,
+                const SizedBox(height: 16),
+                // Period info
+                GestureDetector(
+                  onTap: _showDateRangePicker,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.orange,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.calendar_today,
+                          size: 20,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          _periodText,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
             ),
           ),
 
-          // Charts Container
+          // Charts Container - Orange background section
           Expanded(
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Period info
-                    GestureDetector(
-                      onTap: _showDateRangePicker,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.shade50,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: Colors.orange.shade200,
-                            width: 1,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.calendar_today,
-                              size: 16,
-                              color: Colors.orange.shade700,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              _periodText,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.orange.shade700,
-                              ),
-                            ),
-                          ],
-                        ),
+            child: Container(
+              color: Colors.orange,
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildChartCard(
+                        'Grafik Operasi Lampu dan Kipas',
+                        'Durasi operasi harian (jam)',
+                        _controller.lampAndFanData,
+                        ['Lampu', 'Kipas'],
+                        [Colors.orange.shade300, Colors.blue.shade400],
+                        Icons.lightbulb_outline,
                       ),
-                    ),
 
-                    const SizedBox(height: 20),
+                      const SizedBox(height: 24),
 
-                    // Chart 1: Grafik Operasi Lampu dan Kipas
-                    _buildChartCard(
-                      'Grafik Operasi Lampu dan Kipas',
-                      'Durasi operasi harian (jam)',
-                      _controller.lampAndFanData,
-                      ['Lampu', 'Kipas'],
-                      [Colors.orange.shade300, Colors.blue.shade400],
-                      Icons.lightbulb_outline,
-                    ),
+                      // Chart 2: Durasi Penggunaan Listrik dan Aki
+                      _buildChartCard(
+                        'Durasi Penggunaan Listrik dan Aki',
+                        'Sumber daya harian (jam)',
+                        _controller.powerAndBatteryData,
+                        ['Listrik', 'Aki'],
+                        [Colors.orange.shade300, Colors.green.shade400],
+                        Icons.power,
+                      ),
 
-                    const SizedBox(height: 24),
-
-                    // Chart 2: Durasi Penggunaan Listrik dan Aki
-                    _buildChartCard(
-                      'Durasi Penggunaan Listrik dan Aki',
-                      'Sumber daya harian (jam)',
-                      _controller.powerAndBatteryData,
-                      ['Listrik', 'Aki'],
-                      [Colors.orange.shade300, Colors.green.shade400],
-                      Icons.power,
-                    ),
-
-                    const SizedBox(height: 100),
-                  ],
+                      const SizedBox(height: 100),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -429,22 +431,15 @@ class _StatisticsPageState extends State<StatisticsPage> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: color,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: Column(
         children: [
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
+            decoration: const BoxDecoration(
+              color: Colors.white,
               shape: BoxShape.circle,
             ),
             child: Icon(icon, size: 24, color: color),
@@ -453,19 +448,20 @@ class _StatisticsPageState extends State<StatisticsPage> {
           Text(
             title,
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 11,
-              color: Colors.grey.shade600,
+              color: Colors.white,
               height: 1.3,
+              fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(height: 6),
           Text(
             value,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: Colors.grey.shade800,
+              color: Colors.white,
             ),
           ),
         ],

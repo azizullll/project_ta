@@ -701,16 +701,16 @@ class _NotificationPageState extends State<NotificationPage> {
     switch (notification.severity) {
       case 'high':
         backgroundColor = Colors.white;
-        headerColor = const Color(0xFF8B0000); // Dark red
+        headerColor = const Color(0xFFFFA726); // Orange solid color like in history
         break;
       case 'low':
         backgroundColor = Colors.white;
-        headerColor = Colors.orange.shade300;
+        headerColor = const Color(0xFF4CAF50); // Green solid color like in history
         break;
       case 'medium':
       default:
         backgroundColor = Colors.white;
-        headerColor = Colors.orange;
+        headerColor = const Color(0xFFFFA726); // Orange solid color like in history
         break;
     }
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'history_page.dart';
 import 'death_page.dart';
 import 'statistics_page.dart';
@@ -13,6 +14,18 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  String _getUserEmail() {
+    final user = _auth.currentUser;
+    return user?.email ?? 'Tidak ada akun';
+  }
+
+  String _getUserName() {
+    final user = _auth.currentUser;
+    return user?.displayName ?? 'Pengguna';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -95,6 +108,71 @@ class _SettingsPageState extends State<SettingsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // AKUN Section
+                    const Text(
+                      'AKUN',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // User Account Info Card
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        children: [
+                          // User Avatar
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.shade100,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.account_circle,
+                              size: 32,
+                              color: Colors.orange.shade700,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _getUserName(),
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  _getUserEmail(),
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
                     // DATA & PENYIMPANAN Section
                     const Text(
                       'DATA & PENYIMPANAN',
@@ -171,7 +249,7 @@ class _SettingsPageState extends State<SettingsPage> {
                               Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: Colors.black,
+                                  color: Colors.white,
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Image.asset(
