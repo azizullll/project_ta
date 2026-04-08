@@ -21,6 +21,8 @@ class NotificationService {
   final List<Function(List<NotificationModel>)> _listeners = [];
   final List<StreamSubscription> _subscriptions = [];
   final Map<String, DateTime> _lastNotificationTimes = {};
+  String? _lastTemperatureState;
+  String? _lastHumidityState;
   bool _isInitialized = false;
   int _currentChickenAge = 1;
 
@@ -373,80 +375,144 @@ class NotificationService {
           return;
         }
 
-        final ranges = _getRangeByAge(_currentChickenAge);
-        final tempMin = ranges['tempMin']!;
-        final tempMax = ranges['tempMax']!;
-        final humMin = ranges['humMin']!;
-        final humMax = ranges['humMax']!;
-
-        if (temperature < tempMin - 2) {
-          _addNotificationFromEvent(
-            'Suhu sangat rendah: ${temperature.toStringAsFixed(1)}°C (Kritis)',
-            type: 'temperature',
-            severity: 'high',
-          );
-        } else if (temperature < tempMin) {
-          _addNotificationFromEvent(
-            'Suhu rendah: ${temperature.toStringAsFixed(1)}°C',
-            type: 'temperature',
-            severity: 'medium',
-          );
-        } else if (temperature > tempMax + 2) {
-          _addNotificationFromEvent(
-            'Suhu sangat tinggi: ${temperature.toStringAsFixed(1)}°C (Kritis)',
-            type: 'temperature',
-            severity: 'high',
-          );
-        } else if (temperature > tempMax) {
-          _addNotificationFromEvent(
-            'Suhu tinggi: ${temperature.toStringAsFixed(1)}°C',
-            type: 'temperature',
-            severity: 'medium',
-          );
-        } else {
-          _addNotificationFromEvent(
-            'Suhu normal: ${temperature.toStringAsFixed(1)}°C (Optimal)',
-            type: 'temperature',
-            severity: 'low',
-          );
-        }
-
-        if (humidity < humMin - 5) {
-          _addNotificationFromEvent(
-            'Kelembapan sangat rendah: ${humidity.toStringAsFixed(1)}% (Kritis)',
-            type: 'humidity',
-            severity: 'high',
-          );
-        } else if (humidity < humMin) {
-          _addNotificationFromEvent(
-            'Kelembapan rendah: ${humidity.toStringAsFixed(1)}%',
-            type: 'humidity',
-            severity: 'medium',
-          );
-        } else if (humidity > humMax + 5) {
-          _addNotificationFromEvent(
-            'Kelembapan sangat tinggi: ${humidity.toStringAsFixed(1)}% (Kritis)',
-            type: 'humidity',
-            severity: 'high',
-          );
-        } else if (humidity > humMax) {
-          _addNotificationFromEvent(
-            'Kelembapan tinggi: ${humidity.toStringAsFixed(1)}%',
-            type: 'humidity',
-            severity: 'medium',
-          );
-        } else {
-          _addNotificationFromEvent(
-            'Kelembapan normal: ${humidity.toStringAsFixed(1)}% (Optimal)',
-            type: 'humidity',
-            severity: 'low',
-          );
-        }
+        _processSensorReadings(temperature: temperature, humidity: humidity);
       } catch (e) {
         debugPrint('❌ Error saat memproses data sensor: $e');
       }
     });
     _subscriptions.add(subscription);
+  }
+
+  Future<void> _processSensorReadings({
+    required double temperature,
+    required double humidity,
+  }) async {
+    final ranges = _getRangeByAge(_currentChickenAge);
+    final tempInfo = _classifyTemperature(temperature, ranges);
+    final humInfo = _classifyHumidity(humidity, ranges);
+
+    await _maybeAddSensorNotification(
+      sensorType: 'temperature',
+      currentState: tempInfo['state']!,
+      previousState: _lastTemperatureState,
+      title: tempInfo['title']!,
+      severity: tempInfo['severity']!,
+    );
+    _lastTemperatureState = tempInfo['state'];
+
+    await _maybeAddSensorNotification(
+      sensorType: 'humidity',
+      currentState: humInfo['state']!,
+      previousState: _lastHumidityState,
+      title: humInfo['title']!,
+      severity: humInfo['severity']!,
+    );
+    _lastHumidityState = humInfo['state'];
+  }
+
+  Future<void> _maybeAddSensorNotification({
+    required String sensorType,
+    required String currentState,
+    required String? previousState,
+    required String title,
+    required String severity,
+  }) async {
+    // Kirim notifikasi hanya saat status berubah (termasuk kondisi awal).
+    if (previousState == currentState) {
+      return;
+    }
+
+    await _addNotificationFromEvent(
+      title,
+      type: sensorType,
+      severity: severity,
+    );
+  }
+
+  Map<String, String> _classifyTemperature(
+    double temperature,
+    Map<String, double> ranges,
+  ) {
+    final tempMin = ranges['tempMin']!;
+    final tempMax = ranges['tempMax']!;
+
+    if (temperature < tempMin - 2) {
+      return {
+        'state': 'very_low',
+        'title': 'Suhu sangat rendah: ${temperature.toStringAsFixed(1)}°C',
+        'severity': 'high',
+      };
+    }
+    if (temperature < tempMin) {
+      return {
+        'state': 'low',
+        'title': 'Suhu rendah: ${temperature.toStringAsFixed(1)}°C',
+        'severity': 'medium',
+      };
+    }
+    if (temperature > tempMax + 2) {
+      return {
+        'state': 'very_high',
+        'title': 'Suhu sangat tinggi: ${temperature.toStringAsFixed(1)}°C',
+        'severity': 'high',
+      };
+    }
+    if (temperature > tempMax) {
+      return {
+        'state': 'high',
+        'title': 'Suhu tinggi: ${temperature.toStringAsFixed(1)}°C',
+        'severity': 'medium',
+      };
+    }
+
+    return {
+      'state': 'normal',
+      'title': 'Suhu normal: ${temperature.toStringAsFixed(1)}°C',
+      'severity': 'low',
+    };
+  }
+
+  Map<String, String> _classifyHumidity(
+    double humidity,
+    Map<String, double> ranges,
+  ) {
+    final humMin = ranges['humMin']!;
+    final humMax = ranges['humMax']!;
+
+    if (humidity < humMin - 5) {
+      return {
+        'state': 'very_low',
+        'title': 'Kelembapan sangat rendah: ${humidity.toStringAsFixed(1)}%',
+        'severity': 'high',
+      };
+    }
+    if (humidity < humMin) {
+      return {
+        'state': 'low',
+        'title': 'Kelembapan rendah: ${humidity.toStringAsFixed(1)}%',
+        'severity': 'medium',
+      };
+    }
+    if (humidity > humMax + 5) {
+      return {
+        'state': 'very_high',
+        'title': 'Kelembapan sangat tinggi: ${humidity.toStringAsFixed(1)}%',
+        'severity': 'high',
+      };
+    }
+    if (humidity > humMax) {
+      return {
+        'state': 'high',
+        'title': 'Kelembapan tinggi: ${humidity.toStringAsFixed(1)}%',
+        'severity': 'medium',
+      };
+    }
+
+    return {
+      'state': 'normal',
+      'title': 'Kelembapan normal: ${humidity.toStringAsFixed(1)}%',
+      'severity': 'low',
+    };
   }
 
   Future<void> _addNotificationFromEvent(
@@ -657,21 +723,11 @@ class NotificationService {
         );
         final temperature = _readDouble(sensorData, ['temperature']);
         final humidity = _readDouble(sensorData, ['Humidity', 'humidity']);
-        if (temperature != null || humidity != null) {
-          if (temperature != null) {
-            _addNotificationFromEvent(
-              'Suhu saat ini: ${temperature.toStringAsFixed(1)}°C',
-              type: 'temperature',
-              severity: 'low',
-            );
-          }
-          if (humidity != null) {
-            _addNotificationFromEvent(
-              'Kelembapan saat ini: ${humidity.toStringAsFixed(1)}%',
-              type: 'humidity',
-              severity: 'low',
-            );
-          }
+        if (temperature != null && humidity != null) {
+          await _processSensorReadings(
+            temperature: temperature,
+            humidity: humidity,
+          );
         }
       }
     } catch (e) {

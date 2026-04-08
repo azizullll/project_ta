@@ -986,16 +986,16 @@ class _NotificationPageState extends State<NotificationPage> {
     switch (notification.severity) {
       case 'high':
         backgroundColor = Colors.white;
-        headerColor = const Color(0xFFF44336); // Red for high priority
+        headerColor = const Color(0xFF8B0000); // Same critical tone as history page
         break;
       case 'low':
         backgroundColor = Colors.white;
-        headerColor = const Color(0xFF4CAF50); // Green for low priority
+        headerColor = Colors.green;
         break;
       case 'medium':
       default:
         backgroundColor = Colors.white;
-        headerColor = const Color(0xFFFFA726); // Orange for medium priority
+        headerColor = Colors.yellow.shade700;
         break;
     }
 
@@ -1029,9 +1029,6 @@ class _NotificationPageState extends State<NotificationPage> {
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          border: notification.isRead
-              ? null
-              : Border.all(color: Colors.white, width: 2),
         ),
         child: Column(
           children: [
@@ -1116,12 +1113,10 @@ class _NotificationPageState extends State<NotificationPage> {
                 children: [
                   Text(
                     notification.title,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Colors.black87,
                       fontSize: 14,
-                      fontWeight: notification.isRead
-                          ? FontWeight.normal
-                          : FontWeight.bold,
+                      fontWeight: FontWeight.w600,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -1130,12 +1125,9 @@ class _NotificationPageState extends State<NotificationPage> {
                     const SizedBox(height: 4),
                     Text(
                       notification.description,
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: Colors.black54,
                         fontSize: 12,
-                        fontStyle: notification.isRead
-                            ? FontStyle.italic
-                            : FontStyle.normal,
                       ),
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
