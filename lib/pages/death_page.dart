@@ -21,8 +21,6 @@ class _DeathPageState extends State<DeathPage> {
 
   // Form controllers
   final TextEditingController _countController = TextEditingController();
-  final TextEditingController _causeController = TextEditingController();
-  final TextEditingController _notesController = TextEditingController();
   int _selectedAge = 1;
 
   @override
@@ -36,8 +34,6 @@ class _DeathPageState extends State<DeathPage> {
   @override
   void dispose() {
     _countController.dispose();
-    _causeController.dispose();
-    _notesController.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -66,8 +62,38 @@ class _DeathPageState extends State<DeathPage> {
       setState(() {
         _selectedDateRange = DateTimeRange(start: picked, end: picked);
         _dateFilterText = DateFormat('dd/MM/yyyy').format(picked);
+        _currentPage = 1;
       });
     }
+  }
+
+  List<DeathModel> _getFilteredRecords() {
+    final allRecords = _controller.deathRecords;
+    if (_selectedDateRange == null) {
+      return allRecords;
+    }
+
+    final start = DateTime(
+      _selectedDateRange!.start.year,
+      _selectedDateRange!.start.month,
+      _selectedDateRange!.start.day,
+    );
+    final end = DateTime(
+      _selectedDateRange!.end.year,
+      _selectedDateRange!.end.month,
+      _selectedDateRange!.end.day,
+      23,
+      59,
+      59,
+      999,
+    );
+
+    return allRecords
+        .where(
+          (record) =>
+              !record.dateTime.isBefore(start) && !record.dateTime.isAfter(end),
+        )
+        .toList();
   }
 
   void _clearDateFilter() {
@@ -80,6 +106,20 @@ class _DeathPageState extends State<DeathPage> {
 
   @override
   Widget build(BuildContext context) {
+    final filteredRecords = _getFilteredRecords();
+    final totalRecords = filteredRecords.length;
+    final totalDeaths = filteredRecords.fold<int>(
+      0,
+      (sum, record) => sum + record.count,
+    );
+    final totalPages = totalRecords == 0
+        ? 0
+        : (totalRecords / _controller.itemsPerPage).ceil();
+
+    if (totalPages > 0 && _currentPage > totalPages) {
+      _currentPage = totalPages;
+    }
+
     return Scaffold(
       backgroundColor: Colors.orange,
       appBar: AppBar(
@@ -195,7 +235,7 @@ class _DeathPageState extends State<DeathPage> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            '${_controller.totalDeaths}',
+                            '$totalDeaths',
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 36,
@@ -216,7 +256,7 @@ class _DeathPageState extends State<DeathPage> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            '${_controller.totalRecords}',
+                            '$totalRecords',
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 36,
@@ -239,7 +279,7 @@ class _DeathPageState extends State<DeathPage> {
               child: Column(
                 children: [
                   // Items per page control
-                  if (_controller.hasData)
+                  if (filteredRecords.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.all(16),
                       child: Row(
@@ -289,8 +329,8 @@ class _DeathPageState extends State<DeathPage> {
 
                   // Content or Empty State
                   Expanded(
-                    child: _controller.hasData
-                        ? _buildDataList()
+                    child: filteredRecords.isNotEmpty
+                        ? _buildDataList(filteredRecords)
                         : _buildEmptyState(),
                   ),
                 ],
@@ -328,8 +368,6 @@ class _DeathPageState extends State<DeathPage> {
   void _showAddDeathDialog() {
     // Reset form
     _countController.clear();
-    _causeController.clear();
-    _notesController.clear();
     _selectedAge = 1;
 
     showDialog(
@@ -384,7 +422,7 @@ class _DeathPageState extends State<DeathPage> {
                     isExpanded: true,
                     underline: const SizedBox(),
                     items: List.generate(
-                      20,
+                      4,
                       (index) => DropdownMenuItem(
                         value: index + 1,
                         child: Text('${index + 1} Minggu'),
@@ -399,49 +437,6 @@ class _DeathPageState extends State<DeathPage> {
                     },
                   ),
                 ),
-                const SizedBox(height: 16),
-
-                // Penyebab
-                const Text(
-                  'Penyebab Kematian',
-                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _causeController,
-                  decoration: InputDecoration(
-                    hintText: 'Contoh: Penyakit, Suhu, dll',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 12,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Catatan (Optional)
-                const Text(
-                  'Catatan (Opsional)',
-                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _notesController,
-                  maxLines: 3,
-                  decoration: InputDecoration(
-                    hintText: 'Tambahkan catatan...',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 12,
-                    ),
-                  ),
-                ),
               ],
             ),
           ),
@@ -451,22 +446,12 @@ class _DeathPageState extends State<DeathPage> {
               child: const Text('Batal', style: TextStyle(color: Colors.grey)),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 // Validasi
                 if (_countController.text.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Jumlah kematian harus diisi'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                  return;
-                }
-
-                if (_causeController.text.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Penyebab kematian harus diisi'),
                       backgroundColor: Colors.red,
                     ),
                   );
@@ -489,12 +474,12 @@ class _DeathPageState extends State<DeathPage> {
                   id: DateTime.now().millisecondsSinceEpoch.toString(),
                   dateTime: DateTime.now(),
                   count: count,
-                  cause: _causeController.text,
+                  cause: 'Tidak dicatat',
                   chickenAge: _selectedAge,
-                  notes: _notesController.text,
+                  notes: '',
                 );
 
-                _controller.addDeathRecord(newRecord);
+                await _controller.addDeathRecord(newRecord);
 
                 Navigator.pop(context);
 
@@ -540,8 +525,67 @@ class _DeathPageState extends State<DeathPage> {
     );
   }
 
-  Widget _buildDataList() {
-    final records = _controller.getRecordsForPage(_currentPage);
+  Future<void> _confirmDeleteRecord(DeathModel record) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Hapus Data'),
+        content: const Text('Yakin ingin menghapus data kematian ini?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldDelete != true) {
+      return;
+    }
+
+    await _controller.deleteDeathRecord(record.id);
+
+    if (!mounted) {
+      return;
+    }
+
+    final filteredRecords = _getFilteredRecords();
+    final totalPages = filteredRecords.isEmpty
+        ? 0
+        : (filteredRecords.length / _controller.itemsPerPage).ceil();
+    setState(() {
+      if (totalPages == 0) {
+        _currentPage = 1;
+      } else if (_currentPage > totalPages) {
+        _currentPage = totalPages;
+      }
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Data kematian berhasil dihapus'),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  Widget _buildDataList(List<DeathModel> filteredRecords) {
+    final startIndex = (_currentPage - 1) * _controller.itemsPerPage;
+    final endIndex =
+        (startIndex + _controller.itemsPerPage).clamp(0, filteredRecords.length);
+
+    final records = startIndex >= filteredRecords.length
+        ? <DeathModel>[]
+        : filteredRecords.sublist(startIndex, endIndex);
 
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -554,6 +598,13 @@ class _DeathPageState extends State<DeathPage> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.06),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -561,31 +612,62 @@ class _DeathPageState extends State<DeathPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Jumlah: ${record.count}',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: Text(
+                      'Jumlah: ${record.count}',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
                     ),
                   ),
-                  Text(
-                    'Umur: ${record.chickenAge} Minggu',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      'Umur ${record.chickenAge} Mg',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.orange.shade800,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Penyebab: ${record.cause}',
-                style: const TextStyle(fontSize: 14),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Icon(Icons.access_time, size: 16, color: Colors.grey.shade600),
+                  const SizedBox(width: 6),
+                  Text(
+                    DateFormat('dd MMM yyyy, HH:mm').format(record.dateTime),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade700,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const Spacer(),
+                  Material(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(20),
+                    child: IconButton(
+                      onPressed: () => _confirmDeleteRecord(record),
+                      icon: const Icon(Icons.delete_outline, color: Colors.red),
+                      tooltip: 'Hapus data',
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                ],
               ),
-              if (record.notes.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(
-                  record.notes,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                ),
-              ],
             ],
           ),
         );

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../controllers/login_controller.dart';
 import 'dashboard_page.dart';
-import 'forgot_password_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -12,7 +11,6 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final LoginController _controller = LoginController();
-  bool _isPasswordVisible = false;
   bool _isLoading = false;
 
   @override
@@ -21,22 +19,12 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  void _handleLogin() async {
-    if (!_controller.validateForm()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Mohon isi email dan password dengan benar'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
+  void _handleGoogleLogin() async {
     setState(() {
       _isLoading = true;
     });
 
-    final result = await _controller.loginWithEmailPassword();
+    final result = await _controller.loginWithGoogle();
 
     setState(() {
       _isLoading = false;
@@ -115,7 +103,7 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                       const SizedBox(height: 12),
                       const Text(
-                        'Welcome back. Use your email and password to log in',
+                        'Silakan lanjutkan dengan Google Sign-In menggunakan email yang sudah terdaftar.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 16,
@@ -123,95 +111,14 @@ class _LoginPageState extends State<LoginPage> {
                           height: 1.5,
                         ),
                       ),
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 44),
 
-                      // Email field
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        child: TextField(
-                          controller: _controller.emailController,
-                          keyboardType: TextInputType.emailAddress,
-                          decoration: InputDecoration(
-                            hintText: 'Email',
-                            prefixIcon: Container(
-                              padding: const EdgeInsets.all(12),
-                              child: const Icon(
-                                Icons.email_outlined,
-                                color: Colors.black87,
-                                size: 24,
-                              ),
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(30),
-                              borderSide: BorderSide.none,
-                            ),
-                            filled: true,
-                            fillColor: Colors.white,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 16,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      // Password field
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        child: TextField(
-                          controller: _controller.passwordController,
-                          obscureText: !_isPasswordVisible,
-                          decoration: InputDecoration(
-                            hintText: 'Password',
-                            prefixIcon: Container(
-                              padding: const EdgeInsets.all(12),
-                              child: const Icon(
-                                Icons.lock_outline,
-                                color: Colors.black87,
-                                size: 24,
-                              ),
-                            ),
-                            suffixIcon: IconButton(
-                              icon: Icon(
-                                _isPasswordVisible
-                                    ? Icons.visibility_off
-                                    : Icons.visibility,
-                                color: Colors.black54,
-                              ),
-                              onPressed: () {
-                                setState(() {
-                                  _isPasswordVisible = !_isPasswordVisible;
-                                });
-                              },
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(30),
-                              borderSide: BorderSide.none,
-                            ),
-                            filled: true,
-                            fillColor: Colors.white,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 16,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 30),
-
-                      // Login button
+                      // Google sign-in button
                       SizedBox(
-                        width: 200,
-                        height: 50,
+                        width: 260,
+                        height: 54,
                         child: ElevatedButton(
-                          onPressed: _isLoading ? null : _handleLogin,
+                          onPressed: _isLoading ? null : _handleGoogleLogin,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white,
                             foregroundColor: Colors.orange,
@@ -229,38 +136,43 @@ class _LoginPageState extends State<LoginPage> {
                                     color: Colors.orange,
                                   ),
                                 )
-                              : const Text(
-                                  'Login',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                              : const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.login, size: 20),
+                                    SizedBox(width: 10),
+                                    Text(
+                                      'Login dengan Google',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                         ),
                       ),
-                      const SizedBox(height: 20),
-
-                      // Forgot password
-                      TextButton(
-                        onPressed: () {
-                          // Navigate to forgot password page
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  const ForgotPasswordPage(),
-                            ),
-                          );
-                        },
-                        child: const Text(
-                          'Forgot Password?',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
+                      const SizedBox(height: 18),
+                      const Text(
+                        'Hanya email Google yang sudah terdaftar pada Authentication yang dapat login.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          height: 1.4,
                         ),
                       ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Jika belum terdaftar, hubungi administrator.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
                     ],
                   ),
                 ),

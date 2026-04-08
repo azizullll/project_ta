@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import '../models/death_model.dart';
+import '../services/death_db_helper.dart';
 
 class DeathController extends ChangeNotifier {
   List<DeathModel> _deathRecords = [];
   int _itemsPerPage = 10;
   String _filterDate = 'all';
+  final DeathDatabaseHelper _dbHelper = DeathDatabaseHelper();
 
   List<DeathModel> get deathRecords => _deathRecords;
   int get itemsPerPage => _itemsPerPage;
@@ -20,10 +22,8 @@ class DeathController extends ChangeNotifier {
     _initializeData();
   }
 
-  void _initializeData() {
-    // Initialize with empty data by default
-    _deathRecords = [];
-    notifyListeners();
+  Future<void> _initializeData() async {
+    await refreshData();
   }
 
   // Get death records for specific page
@@ -58,19 +58,22 @@ class DeathController extends ChangeNotifier {
   }
 
   // Add new death record
-  void addDeathRecord(DeathModel record) {
+  Future<void> addDeathRecord(DeathModel record) async {
+    await _dbHelper.insertRecord(record);
     _deathRecords.insert(0, record);
     notifyListeners();
   }
 
   // Delete specific death record
-  void deleteDeathRecord(String id) {
+  Future<void> deleteDeathRecord(String id) async {
+    await _dbHelper.deleteRecord(id);
     _deathRecords.removeWhere((r) => r.id == id);
     notifyListeners();
   }
 
   // Clear all death records
-  void clearAllRecords() {
+  Future<void> clearAllRecords() async {
+    await _dbHelper.clearAllRecords();
     _deathRecords.clear();
     notifyListeners();
   }
@@ -82,8 +85,8 @@ class DeathController extends ChangeNotifier {
   }
 
   // Refresh data
-  void refreshData() {
-    _initializeData();
+  Future<void> refreshData() async {
+    _deathRecords = await _dbHelper.getRecords();
     notifyListeners();
   }
 

@@ -8,6 +8,8 @@ import 'age_range_page.dart';
 import 'history_page.dart';
 import 'death_page.dart';
 import 'statistics_page.dart';
+import 'real_time_monitor_page.dart';
+import 'data_log_page.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -91,6 +93,17 @@ class _DashboardPageState extends State<DashboardPage> {
                 context,
                 MaterialPageRoute(
                   builder: (context) => const NotificationPage(),
+                ),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.monitor, color: Colors.black),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const RealTimeMonitorPage(),
                 ),
               );
             },
@@ -253,6 +266,50 @@ class _DashboardPageState extends State<DashboardPage> {
                             ),
                           ),
                           const SizedBox(height: 16),
+
+                          // Connection Status Card
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: _controller.isConnected 
+                                  ? Colors.green.withOpacity(0.1) 
+                                  : Colors.red.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: _controller.isConnected ? Colors.green : Colors.red,
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  _controller.isConnected ? Icons.wifi : Icons.wifi_off,
+                                  color: _controller.isConnected ? Colors.green : Colors.red,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  _controller.isConnected ? 'ESP32 Terhubung' : 'ESP32 Terputus',
+                                  style: TextStyle(
+                                    color: _controller.isConnected ? Colors.green : Colors.red,
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                const Spacer(),
+                                if (_controller.isConnected && _controller.lastUpdateTime.isNotEmpty)
+                                  Text(
+                                    _controller.lastUpdateTime.split(' ').last.substring(0, 5),
+                                    style: const TextStyle(
+                                      color: Colors.grey,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 12),
 
                           // Temperature and Humidity Cards
                           Row(

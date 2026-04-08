@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import '../models/notification_model.dart';
+import '../services/notification_service.dart';
 
 class NotificationController extends ChangeNotifier {
+  final NotificationService _notificationService = NotificationService();
   List<NotificationModel> _notifications = [];
   int _itemsPerPage = 10;
   String _filterDate = 'all'; // 'all', 'today', 'week'
   String _filterAge = 'all'; // 'all', '1', '2', etc.
+  bool _isInitialized = false;
 
   List<NotificationModel> get notifications => _notifications;
   int get itemsPerPage => _itemsPerPage;
@@ -15,66 +18,48 @@ class NotificationController extends ChangeNotifier {
   int get unreadCount => _notifications.where((n) => !n.isRead).length;
 
   NotificationController() {
-    _initializeNotifications();
+    _initializeController();
   }
 
-  void _initializeNotifications() {
-    _notifications = [
-      NotificationModel(
-        id: '1',
-        type: 'humidity',
-        title: 'Kelembapan rendah : 58.0%',
-        description: 'Kelembapan rendah : 58.0%',
-        dateTime: DateTime(2025, 6, 26, 21, 38),
-        chickenAge: 1,
-        severity: 'medium',
-      ),
-      NotificationModel(
-        id: '2',
-        type: 'temperature',
-        title: 'Suhu rendah : 28°C',
-        description: 'Suhu rendah : 28°C',
-        dateTime: DateTime(2025, 6, 26, 21, 38),
-        chickenAge: 1,
-        severity: 'medium',
-      ),
-      NotificationModel(
-        id: '3',
-        type: 'fuzzy',
-        title: 'Fuzzy: Kelembapan sangat rendah (1.00)',
-        description: 'Fuzzy: Kelembapan sangat rendah (1.00)',
-        dateTime: DateTime(2025, 6, 27, 1, 21),
-        chickenAge: 1,
-        severity: 'low',
-      ),
-      NotificationModel(
-        id: '4',
-        type: 'fuzzy',
-        title: 'Fuzzy: Suhu sangat rendah (1.00)',
-        description: 'Fuzzy: Suhu sangat rendah (1.00)',
-        dateTime: DateTime(2025, 6, 27, 1, 21),
-        chickenAge: 1,
-        severity: 'low',
-      ),
-      NotificationModel(
-        id: '5',
-        type: 'alert',
-        title: 'Kelembapan sangat rendah! Kondisi darurat terdeteksi',
-        description: 'Kelembapan sangat rendah! Kondisi darurat terdeteksi',
-        dateTime: DateTime(2025, 6, 27, 1, 21),
-        chickenAge: 1,
-        severity: 'high',
-      ),
-      NotificationModel(
-        id: '6',
-        type: 'fuzzy',
-        title: 'Fuzzy: Suhu sangat rendah (1.00)',
-        description: 'Fuzzy: Suhu sangat rendah (1.00)',
-        dateTime: DateTime(2025, 6, 27, 1, 21),
-        chickenAge: 1,
-        severity: 'low',
-      ),
-    ];
+  Future<void> _initializeController() async {
+    if (_isInitialized) return;
+    
+    try {
+      debugPrint('🔄 Initializing notification controller...');
+      
+      // Initialize notification service (this will load Firebase data)
+      await _notificationService.initialize();
+      
+      // Listen to notification changes
+      _notificationService.addListener(_onNotificationsChanged);
+      
+      // Wait a bit for initial Firebase data to load
+      await Future.delayed(const Duration(seconds: 2));
+      
+      // Get initial notifications from service
+      _notifications = _notificationService.notifications;
+      
+      debugPrint('🔔 Loaded ${_notifications.length} notifications from service');
+      
+      // Only add dummy data if absolutely no notifications exist
+      if (_notifications.isEmpty) {
+        debugPrint('📝 No notifications from Firebase - showing empty state');
+        // Keep empty instead of adding dummy data
+        _notifications = [];
+      }
+      
+      _isInitialized = true;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('❌ Error initializing notification controller: $e');
+      // Show empty state if Firebase fails
+      _notifications = [];
+    }
+  }
+
+  void _onNotificationsChanged(List<NotificationModel> notifications) {
+    _notifications = notifications;
+    debugPrint('🔔 Notifications updated: ${notifications.length} total');
     notifyListeners();
   }
 
@@ -99,44 +84,96 @@ class NotificationController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Filter by date
+  // Mark notification as read
+  void markAsRead(String id) {
+    _notificationService.markAsRead(id);
+  }
+
+  // Clear all notifications
+  void clearAllNotifications() {
+    _notificationService.clearAll();
+  }
+
+  // Refresh notifications
+  Future<void> refreshNotifications() async {
+    try {
+      debugPrint('🔄 Refreshing notifications from controller...');
+      
+      if (!_isInitialized) {
+        await _initializeController();
+      } else {
+        // Force refresh from Firebase to get latest data
+        await _notificationService.forceRefreshFromFirebase();
+        _notifications = _notificationService.notifications;
+        debugPrint('✅ Refreshed ${_notifications.length} notifications');
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('❌ Error refreshing notifications: $e');
+    }
+  }
+
+  // Filter notifications by date
   void setDateFilter(String filter) {
     _filterDate = filter;
     notifyListeners();
   }
 
-  // Filter by age
-  void setAgeFilter(String age) {
-    _filterAge = age;
+  // Filter notifications by age
+  void setAgeFilter(String filter) {
+    _filterAge = filter;
     notifyListeners();
   }
 
-  // Mark notification as read
-  void markAsRead(String id) {
-    final index = _notifications.indexWhere((n) => n.id == id);
-    if (index != -1) {
-      _notifications[index] = _notifications[index].copyWith(isRead: true);
-      notifyListeners();
+  // Get filtered notifications
+  List<NotificationModel> getFilteredNotifications({
+    DateTimeRange? dateRange,
+    int? selectedAge,
+  }) {
+    var filtered = List<NotificationModel>.from(_notifications);
+
+    // Filter by date range
+    if (dateRange != null) {
+      filtered = filtered.where((notification) {
+        final notificationDate = DateTime(
+          notification.dateTime.year,
+          notification.dateTime.month,
+          notification.dateTime.day,
+        );
+        final startDate = DateTime(
+          dateRange.start.year,
+          dateRange.start.month,
+          dateRange.start.day,
+        );
+        final endDate = DateTime(
+          dateRange.end.year,
+          dateRange.end.month,
+          dateRange.end.day,
+        );
+
+        return (notificationDate.isAfter(
+              startDate.subtract(const Duration(days: 1)),
+            ) &&
+            notificationDate.isBefore(endDate.add(const Duration(days: 1))));
+      }).toList();
     }
+
+    // Filter by age
+    if (selectedAge != null) {
+      filtered = filtered.where((notification) {
+        return notification.chickenAge == selectedAge;
+      }).toList();
+    }
+
+    return filtered;
   }
 
-  // Mark all as read
+  // Mark all notifications as read
   void markAllAsRead() {
-    _notifications = _notifications
+    final updatedNotifications = _notifications
         .map((n) => n.copyWith(isRead: true))
         .toList();
-    notifyListeners();
-  }
-
-  // Add new notification
-  void addNotification(NotificationModel notification) {
-    _notifications.insert(0, notification);
-    notifyListeners();
-  }
-
-  // Clear all notifications
-  void clearAllNotifications() {
-    _notifications.clear();
+    _notifications = updatedNotifications;
     notifyListeners();
   }
 
@@ -146,9 +183,76 @@ class NotificationController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Export notifications (placeholder)
+  // Export notifications (placeholder for future implementation)
   void exportNotifications() {
-    // Implement export logic here
+    // TODO: Implement export to CSV or PDF
+    debugPrint('Export notifications feature - to be implemented');
+  }
+
+  // Add demo notifications for testing
+  void addDemoNotifications() {
+    final demoNotifications = [
+      NotificationModel(
+        id: 'demo_1_${DateTime.now().millisecondsSinceEpoch}',
+        type: 'temperature',
+        title: 'Suhu tinggi : 38.5°C',
+        description: 'Suhu melebihi batas normal, sistem kipas diaktifkan otomatis',
+        dateTime: DateTime.now().subtract(const Duration(minutes: 30)),
+        chickenAge: 1,
+        severity: 'medium',
+      ),
+      NotificationModel(
+        id: 'demo_2_${DateTime.now().millisecondsSinceEpoch}',
+        type: 'fuzzy',
+        title: 'Fuzzy: Kelembapan sangat tinggi (0.89)',
+        description: 'Sistem fuzzy logic mendeteksi kelembapan sangat tinggi dengan confidence 0.89',
+        dateTime: DateTime.now().subtract(const Duration(hours: 1)),
+        chickenAge: 1,
+        severity: 'high',
+      ),
+      NotificationModel(
+        id: 'demo_3_${DateTime.now().millisecondsSinceEpoch}',
+        type: 'alert',
+        title: 'Kondisi Darurat: Suhu Ekstrem!',
+        description: 'Suhu mencapai 42°C! Sistem pendingin darurat diaktifkan',
+        dateTime: DateTime.now().subtract(const Duration(hours: 2)),
+        chickenAge: 1,
+        severity: 'high',
+      ),
+      NotificationModel(
+        id: 'demo_4_${DateTime.now().millisecondsSinceEpoch}',
+        type: 'humidity',
+        title: 'Kelembapan normal : 65.2%',
+        description: 'Kelembapan kembali dalam rentang normal setelah penyesuaian',
+        dateTime: DateTime.now().subtract(const Duration(hours: 3)),
+        chickenAge: 1,
+        severity: 'low',
+      ),
+    ];
+
+    // Add demo notifications to the beginning of the list
+    for (final notification in demoNotifications.reversed) {
+      _notifications.insert(0, notification);
+    }
+    
+    debugPrint('✨ Added ${demoNotifications.length} demo notifications');
     notifyListeners();
+  }
+
+  // Clear all notifications and reload
+  void clearAndReload() {
+    _notifications.clear();
+    debugPrint('🗑️ Cleared all notifications');
+    notifyListeners();
+    
+    // Reinitialize to get fresh data
+    _isInitialized = false;
+    _initializeController();
+  }
+
+  @override
+  void dispose() {
+    _notificationService.removeListener(_onNotificationsChanged);
+    super.dispose();
   }
 }

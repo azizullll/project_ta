@@ -32,4 +32,26 @@ class DeathModel {
       notes: notes ?? this.notes,
     );
   }
+
+  Map<String, Object?> toMap() {
+    return {
+      'id': id,
+      'dateTime': dateTime.toIso8601String(),
+      'count': count,
+      'cause': cause,
+      'chickenAge': chickenAge,
+      'notes': notes,
+    };
+  }
+
+  factory DeathModel.fromMap(Map<String, Object?> map) {
+    return DeathModel(
+      id: map['id'] as String,
+      dateTime: DateTime.parse(map['dateTime'] as String),
+      count: map['count'] as int,
+      cause: map['cause'] as String,
+      chickenAge: map['chickenAge'] as int,
+      notes: (map['notes'] as String?) ?? '',
+    );
+  }
 }

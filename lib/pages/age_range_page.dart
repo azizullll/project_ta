@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../controllers/age_range_controller.dart';
+import '../controllers/dashboard_controller.dart';
+import '../utils/age_range_helper.dart';
 import 'history_page.dart';
 import 'death_page.dart';
 import 'statistics_page.dart';
 import 'dashboard_page.dart';
+import 'data_log_page.dart';
 
 class AgeRangePage extends StatefulWidget {
   const AgeRangePage({super.key});
@@ -14,17 +18,46 @@ class AgeRangePage extends StatefulWidget {
 
 class _AgeRangePageState extends State<AgeRangePage> {
   final AgeRangeController _controller = AgeRangeController();
+  final DashboardController _dashboardController = DashboardController();
+  Timer? _rangeSyncDebounce;
 
-  @override
-  void initState() {
-    super.initState();
-    _controller.addListener(() {
-      setState(() {});
+  void _handleLocalControllerChange() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  void _handleDashboardChange() {
+    _syncAgeFromDashboard();
+  }
+
+  void _syncAgeFromDashboard() {
+    final dashboardAge = _dashboardController.data.chickenAge;
+    if (dashboardAge != _controller.currentAge) {
+      _controller.setCurrentAge(dashboardAge);
+    }
+  }
+
+  void _scheduleRangeSyncToFirebase() {
+    _rangeSyncDebounce?.cancel();
+    _rangeSyncDebounce = Timer(const Duration(milliseconds: 400), () async {
+      final ranges = _controller.buildCurrentRanges();
+      await AgeRangeHelper.updateRangeForWeek(_controller.currentAge, ranges);
     });
   }
 
   @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_handleLocalControllerChange);
+    _dashboardController.addListener(_handleDashboardChange);
+    _syncAgeFromDashboard();
+  }
+
+  @override
   void dispose() {
+    _rangeSyncDebounce?.cancel();
+    _dashboardController.removeListener(_handleDashboardChange);
+    _controller.removeListener(_handleLocalControllerChange);
     _controller.dispose();
     super.dispose();
   }
@@ -54,6 +87,19 @@ class _AgeRangePageState extends State<AgeRangePage> {
             fontWeight: FontWeight.bold,
           ),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.data_usage, color: Colors.black),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const DataLogPage(),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         child: Column(
@@ -267,12 +313,15 @@ class _AgeRangePageState extends State<AgeRangePage> {
                               maxRange: 100.0,
                               onMinChanged: (value) {
                                 _controller.setMinTemperature(value);
+                                _scheduleRangeSyncToFirebase();
                               },
                               onTargetChanged: (value) {
                                 _controller.setTargetTemperature(value);
+                                _scheduleRangeSyncToFirebase();
                               },
                               onMaxChanged: (value) {
                                 _controller.setMaxTemperature(value);
+                                _scheduleRangeSyncToFirebase();
                               },
                             ),
 
@@ -291,12 +340,15 @@ class _AgeRangePageState extends State<AgeRangePage> {
                               maxRange: 100.0,
                               onMinChanged: (value) {
                                 _controller.setMinHumidity(value);
+                                _scheduleRangeSyncToFirebase();
                               },
                               onTargetChanged: (value) {
                                 _controller.setTargetHumidity(value);
+                                _scheduleRangeSyncToFirebase();
                               },
                               onMaxChanged: (value) {
                                 _controller.setMaxHumidity(value);
+                                _scheduleRangeSyncToFirebase();
                               },
                             ),
 
@@ -374,8 +426,40 @@ class _AgeRangePageState extends State<AgeRangePage> {
     final color = _controller.getAgeColor(age);
 
     return GestureDetector(
-      onTap: () {
+      onTap: () async {
+        // Update local controller
         _controller.setCurrentAge(age);
+
+        // Update Firebase with new age
+        try {
+          await _dashboardController.updateChickenAge(age);
+
+          // Push selected week's active range configuration to Firebase.
+          await AgeRangeHelper.updateRangeForWeek(
+            age,
+            _controller.buildCurrentRanges(),
+          );
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Umur ayam diperbarui ke $age minggu'),
+                backgroundColor: Colors.green,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Gagal memperbarui umur ayam'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        }
       },
       child: Column(
         children: [

@@ -8,6 +8,7 @@ import 'age_range_page.dart';
 import 'history_page.dart';
 import 'death_page.dart';
 import 'statistics_page.dart';
+import 'real_time_monitor_page.dart';
 
 class ControlPage extends StatefulWidget {
   const ControlPage({super.key});
@@ -105,6 +106,17 @@ class _ControlPageState extends State<ControlPage> {
             },
           ),
           IconButton(
+            icon: const Icon(Icons.monitor, color: Colors.black),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const RealTimeMonitorPage(),
+                ),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.settings_outlined, color: Colors.black),
             onPressed: () {
               Navigator.push(
@@ -193,8 +205,8 @@ class _ControlPageState extends State<ControlPage> {
                                   ),
                                 ),
                                 GestureDetector(
-                                  onTap: () {
-                                    _controller.toggleAutoMode(
+                                  onTap: () async {
+                                    await _controller.toggleAutoMode(
                                       !_controller.data.isAutoMode,
                                     );
                                   },
@@ -257,7 +269,7 @@ class _ControlPageState extends State<ControlPage> {
                         'Digunakan untuk mengatur kelembapan kandang',
                         Icons.lightbulb,
                         _controller.data.lampStatus,
-                        (value) => _controller.toggleLamp(value),
+                        (value) async => await _controller.toggleLamp(value),
                       ),
 
                       const SizedBox(height: 12),
@@ -270,7 +282,51 @@ class _ControlPageState extends State<ControlPage> {
                             ? 'assets/kipas_on.png'
                             : 'assets/kipas.png',
                         _controller.data.fanStatus,
-                        (value) => _controller.toggleFan(value),
+                        (value) async => await _controller.toggleFan(value),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Connection Status
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              _controller.isConnected ? Icons.wifi : Icons.wifi_off,
+                              color: _controller.isConnected ? Colors.green : Colors.red,
+                              size: 24,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _controller.isConnected ? 'ESP32 Terhubung' : 'ESP32 Terputus',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: _controller.isConnected ? Colors.green : Colors.red,
+                                    ),
+                                  ),
+                                  if (_controller.lastUpdateTime.isNotEmpty)
+                                    Text(
+                                      'Update terakhir: ${_controller.lastUpdateTime}',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
 
                       const SizedBox(height: 16),

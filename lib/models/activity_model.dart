@@ -3,6 +3,7 @@ class ActivityModel {
   final String type; // 'normal', 'warning', 'emergency', 'error'
   final String title;
   final String description;
+  final String source; // 'relay', 'control', 'status', 'sensor', 'system', dll
   final DateTime dateTime;
   final int chickenAge;
   final bool lampActive;
@@ -14,6 +15,7 @@ class ActivityModel {
     required this.type,
     required this.title,
     required this.description,
+    this.source = 'system',
     required this.dateTime,
     required this.chickenAge,
     required this.lampActive,
@@ -26,6 +28,7 @@ class ActivityModel {
     String? type,
     String? title,
     String? description,
+    String? source,
     DateTime? dateTime,
     int? chickenAge,
     bool? lampActive,
@@ -37,6 +40,7 @@ class ActivityModel {
       type: type ?? this.type,
       title: title ?? this.title,
       description: description ?? this.description,
+      source: source ?? this.source,
       dateTime: dateTime ?? this.dateTime,
       chickenAge: chickenAge ?? this.chickenAge,
       lampActive: lampActive ?? this.lampActive,

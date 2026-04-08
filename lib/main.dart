@@ -3,6 +3,9 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'pages/splash_screen.dart';
+import 'services/firebase_service.dart';
+import 'services/notification_service.dart';
+import 'utils/age_range_helper.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,6 +21,26 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Initialize Firebase Service for real-time data
+  FirebaseService().initialize();
+  print('🔥 Firebase Real-time Database Service initialized');
+
+  // Initialize Notification Service for push notifications
+  try {
+    await NotificationService().initialize();
+    print('🔔 Notification Service initialized');
+  } catch (e) {
+    print('⚠️ Error initializing notification service: $e');
+  }
+
+  // Initialize default age ranges in Firebase
+  try {
+    await AgeRangeHelper.initializeDefaultRanges();
+    print('📊 Default age ranges initialized in Firebase');
+  } catch (e) {
+    print('⚠️ Error initializing age ranges: $e');
+  }
 
   runApp(const MyApp());
 }

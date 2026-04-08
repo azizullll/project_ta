@@ -17,18 +17,44 @@ class StatisticsPage extends StatefulWidget {
 class _StatisticsPageState extends State<StatisticsPage> {
   final StatisticsController _controller = StatisticsController();
   DateTimeRange? _selectedDateRange;
-  String _periodText = 'Periode: 21 - 27 Mei 2024';
+  late String _periodText;
+
+  void _handleControllerChange() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  String _formatHours(double value) {
+    return '${value.toStringAsFixed(1)} Jam';
+  }
+
+  Future<void> _refreshStatistics() async {
+    final now = DateTime.now();
+    final startDate =
+        _selectedDateRange?.start ??
+        DateTime(now.year, now.month, now.day).subtract(
+          const Duration(days: 6),
+        );
+
+    await _controller.updateDataForRange(startDate);
+  }
 
   @override
   void initState() {
     super.initState();
-    _controller.addListener(() {
-      setState(() {});
-    });
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day).subtract(
+      const Duration(days: 6),
+    );
+    final end = DateTime(now.year, now.month, now.day);
+    _periodText =
+        'Periode: ${DateFormat('dd/MM/yyyy').format(start)} - ${DateFormat('dd/MM/yyyy').format(end)}';
+    _controller.addListener(_handleControllerChange);
   }
 
   @override
   void dispose() {
+    _controller.removeListener(_handleControllerChange);
     _controller.dispose();
     super.dispose();
   }
@@ -223,6 +249,7 @@ class _StatisticsPageState extends State<StatisticsPage> {
                                     _periodText =
                                         'Periode: ${DateFormat('dd/MM/yyyy').format(startDate!)} - ${DateFormat('dd/MM/yyyy').format(endDate!)}';
                                   });
+                                  _controller.updateDataForRange(startDate!);
                                   Navigator.of(context).pop();
                                 }
                               : null,
@@ -257,7 +284,11 @@ class _StatisticsPageState extends State<StatisticsPage> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black),
           onPressed: () {
-            Navigator.pop(context);
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => const DashboardPage()),
+              (route) => false,
+            );
           },
         ),
         title: const Text(
@@ -289,7 +320,7 @@ class _StatisticsPageState extends State<StatisticsPage> {
                     Expanded(
                       child: _buildSummaryCard(
                         'Total Operasi\nPerangkat',
-                        '168 Jam',
+                        _formatHours(_controller.totalOperationHours),
                         Icons.access_time,
                         Colors.blue.shade400,
                       ),
@@ -298,7 +329,7 @@ class _StatisticsPageState extends State<StatisticsPage> {
                     Expanded(
                       child: _buildSummaryCard(
                         'Penggunaan\nListrik',
-                        '112 Jam',
+                        _formatHours(_controller.listrikHours),
                         Icons.flash_on,
                         Colors.orange.shade700,
                       ),
@@ -306,8 +337,8 @@ class _StatisticsPageState extends State<StatisticsPage> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: _buildSummaryCard(
-                        'Penggunaan\nAki',
-                        '56 Jam',
+                        'Penggunaan\nBackup Daya',
+                        _formatHours(_controller.backupDayaHours),
                         Icons.battery_charging_full,
                         Colors.green.shade400,
                       ),
@@ -353,37 +384,42 @@ class _StatisticsPageState extends State<StatisticsPage> {
 
           // Charts Container - Orange background section
           Expanded(
-            child: Container(
+            child: RefreshIndicator(
+              onRefresh: _refreshStatistics,
               color: Colors.orange,
-              child: SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildChartCard(
-                        'Grafik Operasi Lampu dan Kipas',
-                        'Durasi operasi harian (jam)',
-                        _controller.lampAndFanData,
-                        ['Lampu', 'Kipas'],
-                        [Colors.orange.shade300, Colors.blue.shade400],
-                        Icons.lightbulb_outline,
-                      ),
+              child: Container(
+                color: Colors.orange,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildChartCard(
+                          'Grafik Operasi Lampu dan Kipas',
+                          'Durasi operasi harian (jam)',
+                          _controller.lampAndFanData,
+                          ['Lampu', 'Kipas'],
+                          [Colors.orange.shade300, Colors.blue.shade400],
+                          Icons.lightbulb_outline,
+                        ),
 
-                      const SizedBox(height: 24),
+                        const SizedBox(height: 24),
 
-                      // Chart 2: Durasi Penggunaan Listrik dan Aki
-                      _buildChartCard(
-                        'Durasi Penggunaan Listrik dan Aki',
-                        'Sumber daya harian (jam)',
-                        _controller.powerAndBatteryData,
-                        ['Listrik', 'Aki'],
-                        [Colors.orange.shade300, Colors.green.shade400],
-                        Icons.power,
-                      ),
+                        // Chart 2: Durasi Penggunaan Listrik dan Backup Daya
+                        _buildChartCard(
+                          'Durasi Penggunaan Listrik dan Backup Daya',
+                          'Sumber daya harian (jam)',
+                          _controller.powerAndBatteryData,
+                          ['Listrik', 'Backup Daya'],
+                          [Colors.orange.shade300, Colors.green.shade400],
+                          Icons.power,
+                        ),
 
-                      const SizedBox(height: 100),
-                    ],
+                        const SizedBox(height: 100),
+                      ],
+                    ),
                   ),
                 ),
               ),

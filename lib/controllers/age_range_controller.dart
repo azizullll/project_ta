@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/age_range_helper.dart';
 
 class AgeRangeController extends ChangeNotifier {
   int _currentAge = 1;
@@ -33,6 +34,12 @@ class AgeRangeController extends ChangeNotifier {
   void setCurrentAge(int age) {
     if (age >= 1 && age <= _maxAge) {
       _currentAge = age;
+
+      // Apply default dynamic range when auto mode is enabled.
+      if (_autoRangeEnabled) {
+        _applyDefaultRangeForAge(age);
+      }
+
       notifyListeners();
     }
   }
@@ -40,7 +47,46 @@ class AgeRangeController extends ChangeNotifier {
   // Toggle auto range
   void toggleAutoRange(bool value) {
     _autoRangeEnabled = value;
+
+    // When auto mode is turned on, sync local values with selected age range.
+    if (value) {
+      _applyDefaultRangeForAge(_currentAge);
+    }
+
     notifyListeners();
+  }
+
+  void _applyDefaultRangeForAge(int age) {
+    final range = AgeRangeHelper.getRangeForWeek(age);
+    if (range == null) {
+      return;
+    }
+
+    final tempRange = range['temperature'] as Map<String, dynamic>;
+    final humidityRange = range['humidity'] as Map<String, dynamic>;
+
+    _minTemperature = (tempRange['min'] as num).toDouble();
+    _targetTemperature = (tempRange['target'] as num).toDouble();
+    _maxTemperature = (tempRange['max'] as num).toDouble();
+
+    _minHumidity = (humidityRange['min'] as num).toDouble();
+    _targetHumidity = (humidityRange['target'] as num).toDouble();
+    _maxHumidity = (humidityRange['max'] as num).toDouble();
+  }
+
+  Map<String, dynamic> buildCurrentRanges() {
+    return {
+      'temperature': {
+        'min': _minTemperature,
+        'target': _targetTemperature,
+        'max': _maxTemperature,
+      },
+      'humidity': {
+        'min': _minHumidity,
+        'target': _targetHumidity,
+        'max': _maxHumidity,
+      },
+    };
   }
 
   // Get progress value (0.0 to 1.0)

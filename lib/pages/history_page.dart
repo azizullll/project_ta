@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:shimmer/shimmer.dart';
+import 'dart:io';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import '../controllers/history_controller.dart';
 import '../models/activity_model.dart';
 import 'death_page.dart';
@@ -19,20 +25,53 @@ class _HistoryPageState extends State<HistoryPage> {
   DateTime? _selectedDate;
   String _dateFilterText = 'Semua Tanggal';
   int? _selectedAge;
-  String _ageFilterText = 'Umur Saat Ini (1 minggu)';
+  String _ageFilterText = 'Umur Saat Ini';
   String? _selectedType;
   String _typeFilterText = 'Semua';
+  bool _isLoading = true;
+
+  void _handleControllerChange() {
+    if (!mounted) return;
+
+    final maxPage = _controller.totalPagesForFilters(
+      selectedDate: _selectedDate,
+      selectedAge: _selectedAge,
+      selectedType: _selectedType,
+    );
+
+    setState(() {
+      if (_isLoading) {
+        _isLoading = false;
+      }
+
+      if (_currentPage > maxPage) {
+        _currentPage = maxPage;
+      }
+
+      if (_selectedAge == null) {
+        _ageFilterText = 'Umur Saat Ini (${_controller.currentChickenAge} minggu)';
+      }
+    });
+  }
 
   @override
   void initState() {
     super.initState();
-    _controller.addListener(() {
-      setState(() {});
+    _ageFilterText = 'Umur Saat Ini (${_controller.currentChickenAge} minggu)';
+    _controller.addListener(_handleControllerChange);
+
+    // Fallback to prevent indefinite skeleton when stream callback is delayed.
+    Future.delayed(const Duration(milliseconds: 1200), () {
+      if (!mounted || !_isLoading) return;
+      setState(() {
+        _isLoading = false;
+      });
     });
   }
 
   @override
   void dispose() {
+    _controller.removeListener(_handleControllerChange);
     _controller.dispose();
     super.dispose();
   }
@@ -80,7 +119,8 @@ class _HistoryPageState extends State<HistoryPage> {
                 onTap: () {
                   setState(() {
                     _selectedAge = null;
-                    _ageFilterText = 'Semua Umur';
+                    _ageFilterText =
+                        'Umur Saat Ini (${_controller.currentChickenAge} minggu)';
                     _currentPage = 1;
                   });
                   Navigator.pop(context);
@@ -144,9 +184,140 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
+  Future<Directory> _resolveExportDirectory() async {
+    if (Platform.isAndroid) {
+      final downloadDir = Directory('/storage/emulated/0/Download');
+      if (await downloadDir.exists()) {
+        return downloadDir;
+      }
+
+      final externalDir = await getExternalStorageDirectory();
+      if (externalDir != null) {
+        return externalDir;
+      }
+    }
+
+    return getApplicationDocumentsDirectory();
+  }
+
+  Future<void> _exportHistoryToPdf() async {
+    final dataToExport = _controller.getFilteredActivities(
+      selectedDate: _selectedDate,
+      selectedAge: _selectedAge,
+      selectedType: _selectedType,
+    );
+
+    if (dataToExport.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tidak ada data riwayat untuk diunduh'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      final pdf = pw.Document();
+      final rows = dataToExport
+          .map(
+            (activity) => [
+              DateFormat('dd/MM/yyyy').format(activity.dateTime),
+              DateFormat('HH:mm').format(activity.dateTime),
+              activity.type,
+              activity.source,
+              activity.title,
+              activity.description,
+              activity.chickenAge.toString(),
+              activity.lampActive ? 'Aktif' : 'Nonaktif',
+              activity.fanActive ? 'Aktif' : 'Nonaktif',
+            ],
+          )
+          .toList();
+
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          build: (context) => [
+            pw.Text(
+              'Laporan Riwayat Aktivitas',
+              style: pw.TextStyle(
+                fontSize: 18,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+            pw.SizedBox(height: 8),
+            pw.Text('Tanggal export: ${DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now())}'),
+            pw.SizedBox(height: 12),
+            pw.TableHelper.fromTextArray(
+              headers: const [
+                'Tanggal',
+                'Waktu',
+                'Tipe',
+                'Sumber',
+                'Judul',
+                'Deskripsi',
+                'Umur',
+                'Lampu',
+                'Kipas',
+              ],
+              data: rows,
+              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+              headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
+              cellAlignment: pw.Alignment.centerLeft,
+              cellStyle: const pw.TextStyle(fontSize: 8),
+            ),
+          ],
+        ),
+      );
+
+      final output = await pdf.save();
+
+      final directory = await _resolveExportDirectory();
+      final fileName =
+          'riwayat_aktivitas_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final filePath = p.join(directory.path, fileName);
+
+      final file = File(filePath);
+      await file.writeAsBytes(output, flush: true);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('PDF tersimpan: $filePath'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal export PDF riwayat: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final activities = _controller.getActivitiesForPage(_currentPage);
+    final totalPages = _controller.totalPagesForFilters(
+      selectedDate: _selectedDate,
+      selectedAge: _selectedAge,
+      selectedType: _selectedType,
+    );
+    final activities = _controller.getActivitiesForPage(
+      page: _currentPage,
+      selectedDate: _selectedDate,
+      selectedAge: _selectedAge,
+      selectedType: _selectedType,
+    );
+
+    final titleAge = _selectedAge ?? _controller.currentChickenAge;
 
     return Scaffold(
       backgroundColor: Colors.orange,
@@ -164,7 +335,7 @@ class _HistoryPageState extends State<HistoryPage> {
           },
         ),
         title: Text(
-          'Riwayat Aktivitas (Umur: ${_controller.activities.isNotEmpty ? _controller.activities.first.chickenAge : 1} Minggu)',
+          'Riwayat Aktivitas (Umur: $titleAge Minggu)',
           style: const TextStyle(
             color: Colors.black,
             fontSize: 16,
@@ -252,51 +423,56 @@ class _HistoryPageState extends State<HistoryPage> {
                 Row(
                   children: [
                     Expanded(
-                      child: GestureDetector(
-                        onTap: _showAgeFilterDialog,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.orange,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  _ageFilterText,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                  ),
+                      child: _isLoading
+                          ? _buildShimmerHeaderFilter()
+                          : GestureDetector(
+                              onTap: _showAgeFilterDialog,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        _ageFilterText,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    const Icon(
+                                      Icons.tune,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                  ],
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              const Icon(
-                                Icons.tune,
-                                color: Colors.white,
-                                size: 20,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                            ),
                     ),
                     const SizedBox(width: 12),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.orange,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.download,
-                        color: Colors.white,
-                        size: 24,
+                    GestureDetector(
+                      onTap: _exportHistoryToPdf,
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.orange,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.download,
+                          color: Colors.white,
+                          size: 24,
+                        ),
                       ),
                     ),
                   ],
@@ -350,115 +526,132 @@ class _HistoryPageState extends State<HistoryPage> {
                   // Pagination Controls
                   Padding(
                     padding: const EdgeInsets.all(16),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            const Text(
-                              'Baris per halaman:',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
+                    child: _isLoading
+                        ? _buildShimmerHeaderFilter()
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  const Text(
+                                    'Baris per halaman:',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      border: Border.all(color: Colors.white),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: DropdownButton<int>(
+                                      value: _controller.itemsPerPage,
+                                      dropdownColor: Colors.orange,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                      ),
+                                      underline: const SizedBox(),
+                                      icon: const Icon(
+                                        Icons.arrow_drop_down,
+                                        color: Colors.white,
+                                      ),
+                                      items: [5, 10, 20, 50].map((int value) {
+                                        return DropdownMenuItem<int>(
+                                          value: value,
+                                          child: Text(value.toString()),
+                                        );
+                                      }).toList(),
+                                      onChanged: (value) {
+                                        if (value != null) {
+                                          _controller.setItemsPerPage(value);
+                                          setState(() {
+                                            _currentPage = 1;
+                                          });
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 4,
+                              Row(
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.chevron_left,
+                                      color: Colors.white,
+                                    ),
+                                    onPressed: _currentPage > 1
+                                        ? () {
+                                            setState(() {
+                                              _currentPage--;
+                                            });
+                                          }
+                                        : null,
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      '$_currentPage/$totalPages',
+                                      style: const TextStyle(
+                                        color: Colors.orange,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.chevron_right,
+                                      color: Colors.white,
+                                    ),
+                                    onPressed: _currentPage < totalPages
+                                        ? () {
+                                            setState(() {
+                                              _currentPage++;
+                                            });
+                                          }
+                                        : null,
+                                  ),
+                                ],
                               ),
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.white),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: DropdownButton<int>(
-                                value: _controller.itemsPerPage,
-                                dropdownColor: Colors.orange,
-                                style: const TextStyle(color: Colors.white),
-                                underline: const SizedBox(),
-                                icon: const Icon(
-                                  Icons.arrow_drop_down,
-                                  color: Colors.white,
-                                ),
-                                items: [5, 10, 20, 50].map((int value) {
-                                  return DropdownMenuItem<int>(
-                                    value: value,
-                                    child: Text(value.toString()),
-                                  );
-                                }).toList(),
-                                onChanged: (value) {
-                                  if (value != null) {
-                                    _controller.setItemsPerPage(value);
-                                    setState(() {
-                                      _currentPage = 1;
-                                    });
-                                  }
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                        Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(
-                                Icons.chevron_left,
-                                color: Colors.white,
-                              ),
-                              onPressed: _currentPage > 1
-                                  ? () {
-                                      setState(() {
-                                        _currentPage--;
-                                      });
-                                    }
-                                  : null,
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                '$_currentPage/${_controller.totalPages}',
-                                style: const TextStyle(
-                                  color: Colors.orange,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.chevron_right,
-                                color: Colors.white,
-                              ),
-                              onPressed: _currentPage < _controller.totalPages
-                                  ? () {
-                                      setState(() {
-                                        _currentPage++;
-                                      });
-                                    }
-                                  : null,
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                            ],
+                          ),
                   ),
 
                   // Activities List
                   Expanded(
-                    child: ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: activities.length,
-                      itemBuilder: (context, index) {
-                        return _buildActivityCard(activities[index]);
-                      },
-                    ),
+                    child: _isLoading
+                        ? _buildShimmerList()
+                        : activities.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'Belum ada data riwayat yang sesuai filter',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            itemCount: activities.length,
+                            itemBuilder: (context, index) {
+                              return _buildActivityCard(activities[index]);
+                            },
+                          ),
                   ),
                 ],
               ),
@@ -683,6 +876,64 @@ class _HistoryPageState extends State<HistoryPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildShimmerList() {
+    return Shimmer.fromColors(
+      baseColor: Colors.orange.shade300,
+      highlightColor: Colors.orange.shade100,
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: 6,
+        itemBuilder: (context, index) {
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  height: 48,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(16),
+                      topRight: Radius.circular(16),
+                    ),
+                  ),
+                ),
+                Container(
+                  height: 88,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.circular(16),
+                      bottomRight: Radius.circular(16),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildShimmerHeaderFilter() {
+    return Shimmer.fromColors(
+      baseColor: Colors.orange.shade300,
+      highlightColor: Colors.orange.shade100,
+      child: Container(
+        height: 44,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+        ),
       ),
     );
   }

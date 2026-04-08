@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
-import '../controllers/data_controller.dart';
+import 'package:intl/intl.dart';
+import '../controllers/dashboard_controller.dart';
+import '../models/death_model.dart';
+import '../services/death_db_helper.dart';
 import 'dashboard_page.dart';
 import 'control_page.dart';
 import 'settings_page.dart';
@@ -8,6 +11,7 @@ import 'age_range_page.dart';
 import 'history_page.dart';
 import 'death_page.dart';
 import 'statistics_page.dart';
+import 'real_time_monitor_page.dart';
 
 class DataPage extends StatefulWidget {
   const DataPage({super.key});
@@ -17,28 +21,87 @@ class DataPage extends StatefulWidget {
 }
 
 class _DataPageState extends State<DataPage> {
-  final DataController _controller = DataController();
+  final DashboardController _dashboardController = DashboardController();
+  final DeathDatabaseHelper _deathDbHelper = DeathDatabaseHelper();
+
+  List<DeathModel> _deathPreviewRecords = [];
+  int _totalDeathCount = 0;
   int _selectedIndex = 2; // Data tab selected
+
+  void _onControllerChanged() {
+    if (mounted) setState(() {});
+  }
 
   @override
   void initState() {
     super.initState();
-    _controller.addListener(() {
-      setState(() {});
-    });
+    _dashboardController.addListener(_onControllerChanged);
+    _loadDeathPreview();
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _dashboardController.removeListener(_onControllerChanged);
     super.dispose();
+  }
+
+  Future<void> _loadDeathPreview() async {
+    final allRecords = await _deathDbHelper.getRecords();
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _totalDeathCount = allRecords.fold(0, (sum, item) => sum + item.count);
+      _deathPreviewRecords = allRecords.take(5).toList();
+    });
+  }
+
+  String _statusFromValue(String sensor, double value) {
+    if (sensor == 'Suhu') {
+      if (value > 30 || value < 20) {
+        return 'Perhatian';
+      }
+      return 'Normal';
+    }
+
+    if (value > 60 || value < 40) {
+      return 'Perhatian';
+    }
+    return 'Normal';
+  }
+
+  String _sensorStatus({
+    required String sensor,
+    required double value,
+    required String dashboardStatus,
+  }) {
+    if (dashboardStatus.trim().isNotEmpty) {
+      return dashboardStatus;
+    }
+    return _statusFromValue(sensor, value);
+  }
+
+  String _formattedLastUpdate() {
+    final raw = _dashboardController.lastUpdateTime.trim();
+    if (raw.isEmpty) {
+      return '-';
+    }
+
+    try {
+      final parsed = DateTime.parse(raw);
+      return DateFormat('HH:mm:ss').format(parsed);
+    } catch (_) {
+      return raw;
+    }
   }
 
   Future<void> _handleRefresh() async {
     // Simulate refresh delay
     await Future.delayed(const Duration(seconds: 1));
-    // Force controller to reload data
-    _controller.notifyListeners();
+    // Refresh page data sources
+    await _dashboardController.refreshData();
+    await _loadDeathPreview();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -90,6 +153,17 @@ class _DataPageState extends State<DataPage> {
                 context,
                 MaterialPageRoute(
                   builder: (context) => const NotificationPage(),
+                ),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.monitor, color: Colors.black),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const RealTimeMonitorPage(),
                 ),
               );
             },
@@ -171,7 +245,7 @@ class _DataPageState extends State<DataPage> {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            'Terakhir diperbarui: ${_controller.lastUpdated}',
+                            'Terakhir diperbarui: ${_formattedLastUpdate()}',
                             style: const TextStyle(
                               fontSize: 12,
                               color: Colors.black87,
@@ -203,22 +277,22 @@ class _DataPageState extends State<DataPage> {
                     Row(
                       children: [
                         Expanded(
-                          child: _buildSensorCard(
+                          child: _buildInfoCard(
                             'Suhu',
-                            '${_controller.temperature.toStringAsFixed(0)}°C',
+                            '${_dashboardController.data.temperature.toStringAsFixed(0)}°C',
                             Icons.thermostat_outlined,
                             Colors.red,
-                            _controller.temperature / 50,
+                            (_dashboardController.data.temperature / 50).clamp(0.0, 1.0),
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: _buildSensorCard(
+                          child: _buildInfoCard(
                             'Kelembapan',
-                            '${_controller.humidity.toStringAsFixed(0)}%',
+                            '${_dashboardController.data.humidity.toStringAsFixed(0)}%',
                             Icons.water_drop_outlined,
                             Colors.blue,
-                            _controller.humidity / 100,
+                            (_dashboardController.data.humidity / 100).clamp(0.0, 1.0),
                           ),
                         ),
                       ],
@@ -272,13 +346,14 @@ class _DataPageState extends State<DataPage> {
                                 ),
                               ),
                               TextButton(
-                                onPressed: () {
-                                  Navigator.push(
+                                onPressed: () async {
+                                  await Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) => const DeathPage(),
                                     ),
                                   );
+                                  await _loadDeathPreview();
                                 },
                                 child: const Text(
                                   'Lihat Semua',
@@ -291,37 +366,60 @@ class _DataPageState extends State<DataPage> {
                             ],
                           ),
                           const SizedBox(height: 20),
-                          Center(
-                            child: Column(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: Colors.grey.shade400,
-                                      width: 2,
-                                    ),
-                                  ),
-                                  child: Icon(
-                                    Icons.info_outline,
-                                    size: 40,
-                                    color: Colors.grey.shade600,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  _controller.hasDeathData
-                                      ? 'Total kematian: ${_controller.deathCount}'
-                                      : 'Tidak ada data angka kematian',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.grey.shade700,
-                                  ),
-                                ),
-                              ],
+                          Text(
+                            _deathPreviewRecords.isNotEmpty
+                                ? 'Total kematian: $_totalDeathCount'
+                                : 'Tidak ada data angka kematian',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey.shade700,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
+                          if (_deathPreviewRecords.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            ..._deathPreviewRecords.map((record) {
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange.shade50,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Text(
+                                      'Jumlah: ${record.count}',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    Text(
+                                      '${record.chickenAge} mg',
+                                      style: TextStyle(
+                                        color: Colors.orange.shade800,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      DateFormat(
+                                        'dd/MM HH:mm',
+                                      ).format(record.dateTime),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }),
+                          ],
                           const SizedBox(height: 20),
                         ],
                       ),
@@ -409,7 +507,7 @@ class _DataPageState extends State<DataPage> {
     );
   }
 
-  Widget _buildSensorCard(
+  Widget _buildInfoCard(
     String title,
     String value,
     IconData icon,
@@ -493,16 +591,38 @@ class _DataPageState extends State<DataPage> {
             ],
           ),
           // Data rows
-          ..._controller.sensorDataList.map((data) {
-            return TableRow(
-              children: [
-                _buildTableCell(data.sensor),
-                _buildTableCell(data.value.toString()),
-                _buildTableCell(data.status),
-                _buildTableCell(data.time),
-              ],
-            );
-          }).toList(),
+          TableRow(
+            children: [
+              _buildTableCell('Suhu'),
+              _buildTableCell(
+                '${_dashboardController.data.temperature.toStringAsFixed(1)}°C',
+              ),
+              _buildTableCell(
+                _sensorStatus(
+                  sensor: 'Suhu',
+                  value: _dashboardController.data.temperature,
+                  dashboardStatus: _dashboardController.temperatureStatus,
+                ),
+              ),
+              _buildTableCell(_formattedLastUpdate()),
+            ],
+          ),
+          TableRow(
+            children: [
+              _buildTableCell('Kelembapan'),
+              _buildTableCell(
+                '${_dashboardController.data.humidity.toStringAsFixed(1)}%',
+              ),
+              _buildTableCell(
+                _sensorStatus(
+                  sensor: 'Kelembapan',
+                  value: _dashboardController.data.humidity,
+                  dashboardStatus: _dashboardController.humidityStatus,
+                ),
+              ),
+              _buildTableCell(_formattedLastUpdate()),
+            ],
+          ),
         ],
       ),
     );
