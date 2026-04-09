@@ -35,11 +35,6 @@ class AgeRangeController extends ChangeNotifier {
     if (age >= 1 && age <= _maxAge) {
       _currentAge = age;
 
-      // Apply default dynamic range when auto mode is enabled.
-      if (_autoRangeEnabled) {
-        _applyDefaultRangeForAge(age);
-      }
-
       notifyListeners();
     }
   }
@@ -47,16 +42,17 @@ class AgeRangeController extends ChangeNotifier {
   // Toggle auto range
   void toggleAutoRange(bool value) {
     _autoRangeEnabled = value;
-
-    // When auto mode is turned on, sync local values with selected age range.
-    if (value) {
-      _applyDefaultRangeForAge(_currentAge);
-    }
-
     notifyListeners();
   }
 
-  void _applyDefaultRangeForAge(int age) {
+  void setAutoRangeEnabled(bool value, {bool shouldNotify = true}) {
+    _autoRangeEnabled = value;
+    if (shouldNotify) {
+      notifyListeners();
+    }
+  }
+
+  void applyDefaultRangeForAge(int age, {bool shouldNotify = true}) {
     final range = AgeRangeHelper.getRangeForWeek(age);
     if (range == null) {
       return;
@@ -72,6 +68,30 @@ class AgeRangeController extends ChangeNotifier {
     _minHumidity = (humidityRange['min'] as num).toDouble();
     _targetHumidity = (humidityRange['target'] as num).toDouble();
     _maxHumidity = (humidityRange['max'] as num).toDouble();
+
+    if (shouldNotify) {
+      notifyListeners();
+    }
+  }
+
+  void setRangesFromMap(Map<String, dynamic> range, {bool shouldNotify = true}) {
+    final tempRange = range['temperature'] as Map<String, dynamic>?;
+    final humidityRange = range['humidity'] as Map<String, dynamic>?;
+    if (tempRange == null || humidityRange == null) {
+      return;
+    }
+
+    _minTemperature = (tempRange['min'] as num).toDouble();
+    _targetTemperature = (tempRange['target'] as num).toDouble();
+    _maxTemperature = (tempRange['max'] as num).toDouble();
+
+    _minHumidity = (humidityRange['min'] as num).toDouble();
+    _targetHumidity = (humidityRange['target'] as num).toDouble();
+    _maxHumidity = (humidityRange['max'] as num).toDouble();
+
+    if (shouldNotify) {
+      notifyListeners();
+    }
   }
 
   Map<String, dynamic> buildCurrentRanges() {

@@ -142,6 +142,46 @@ class FirebaseService {
     }
   }
 
+  // Persist whether dynamic range mode is enabled.
+  Future<void> setDynamicRangeEnabled(bool enabled) async {
+    try {
+      await _database.child('settings/dynamic_range_enabled').set(enabled);
+    } catch (e) {
+      print('Error setting dynamic range mode: $e');
+    }
+  }
+
+  // Read dynamic range mode preference.
+  Future<bool?> getDynamicRangeEnabled() async {
+    try {
+      final snapshot = await _database.child('settings/dynamic_range_enabled').get();
+      if (snapshot.exists) {
+        return snapshot.value as bool?;
+      }
+    } catch (e) {
+      print('Error getting dynamic range mode: $e');
+    }
+    return null;
+  }
+
+  // Get ranges for a specific week (one-time read).
+  Future<Map<String, dynamic>?> getRangesForWeek(int week) async {
+    try {
+      final snapshot = await _database.child('ranges/week$week').get();
+      if (snapshot.exists) {
+        final rawData = snapshot.value as Map<Object?, Object?>?;
+        if (rawData != null) {
+          return rawData.map(
+            (key, value) => MapEntry(key.toString(), value),
+          );
+        }
+      }
+    } catch (e) {
+      print('Error getting ranges for week $week: $e');
+    }
+    return null;
+  }
+
   // Get current sensor data (one-time read)
   Future<Map<String, dynamic>> getCurrentSensorData() async {
     try {

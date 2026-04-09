@@ -40,6 +40,69 @@ class AgeRangeHelper {
     }
   }
 
+  // Persist dynamic range mode status.
+  static Future<bool> setDynamicRangeEnabled(bool enabled) async {
+    try {
+      await _firebaseService.setDynamicRangeEnabled(enabled);
+      return true;
+    } catch (e) {
+      print('Error setting dynamic range mode: $e');
+      return false;
+    }
+  }
+
+  // Get persisted dynamic range mode status. Defaults to false.
+  static Future<bool> getDynamicRangeEnabled() async {
+    try {
+      return await _firebaseService.getDynamicRangeEnabled() ?? false;
+    } catch (e) {
+      print('Error reading dynamic range mode: $e');
+      return false;
+    }
+  }
+
+  // Read week ranges from Firebase, fallback to default ranges when missing.
+  static Future<Map<String, dynamic>> getStoredRangeForWeek(int week) async {
+    final fallback = getRangeForWeek(week) ?? defaultRanges[1]!;
+    try {
+      final remote = await _firebaseService.getRangesForWeek(week);
+      if (remote == null) {
+        return {
+          'temperature': Map<String, dynamic>.from(fallback['temperature'] as Map<String, dynamic>),
+          'humidity': Map<String, dynamic>.from(fallback['humidity'] as Map<String, dynamic>),
+        };
+      }
+
+      final remoteTemp = (remote['temperature'] as Map<Object?, Object?>?)
+          ?.map((key, value) => MapEntry(key.toString(), value));
+      final remoteHumidity = (remote['humidity'] as Map<Object?, Object?>?)
+          ?.map((key, value) => MapEntry(key.toString(), value));
+
+      final fallbackTemp = Map<String, dynamic>.from(fallback['temperature'] as Map<String, dynamic>);
+      final fallbackHumidity = Map<String, dynamic>.from(fallback['humidity'] as Map<String, dynamic>);
+
+      final mergedTemp = <String, dynamic>{
+        ...fallbackTemp,
+        ...?remoteTemp,
+      };
+      final mergedHumidity = <String, dynamic>{
+        ...fallbackHumidity,
+        ...?remoteHumidity,
+      };
+
+      return {
+        'temperature': mergedTemp,
+        'humidity': mergedHumidity,
+      };
+    } catch (e) {
+      print('Error reading stored ranges for week $week: $e');
+      return {
+        'temperature': Map<String, dynamic>.from(fallback['temperature'] as Map<String, dynamic>),
+        'humidity': Map<String, dynamic>.from(fallback['humidity'] as Map<String, dynamic>),
+      };
+    }
+  }
+
   // Initialize all default ranges in Firebase
   static Future<bool> initializeDefaultRanges() async {
     try {

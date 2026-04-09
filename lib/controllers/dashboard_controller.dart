@@ -17,6 +17,10 @@ class DashboardController extends ChangeNotifier {
   StreamSubscription? _controlSubscription;
   StreamSubscription? _ageSubscription;
   StreamSubscription? _emergencySubscription;
+  Timer? _connectionWatchdog;
+  DateTime? _lastSensorPacketAt;
+
+  static const Duration _sensorTimeout = Duration(seconds: 12);
 
   DashboardModel _data = DashboardModel(
     temperature: 0.0,
@@ -58,13 +62,17 @@ class DashboardController extends ChangeNotifier {
   }
 
   void _startListening() {
+    _startConnectionWatchdog();
+
     // Listen to sensor data (temperature, humidity)
     _sensorSubscription = _firebaseService.getSensorDataStream().listen((sensorData) {
       if (sensorData.isNotEmpty) {
-        _isConnected = true;
         final temperature = (sensorData['temperature'] as num?)?.toDouble() ?? _data.temperature;
         final humidity = (sensorData['Humidity'] as num?)?.toDouble() ?? _data.humidity;
         final timestamp = sensorData['timestamp'] as String? ?? '';
+
+        _lastSensorPacketAt = DateTime.now();
+        _isConnected = _isTimestampFresh(timestamp);
         
         _data = _data.copyWith(
           temperature: temperature,
@@ -144,6 +152,31 @@ class DashboardController extends ChangeNotifier {
     }, onError: (error) {
       print('Error listening to device status: $error');
     });
+  }
+
+  void _startConnectionWatchdog() {
+    _connectionWatchdog?.cancel();
+    _connectionWatchdog = Timer.periodic(const Duration(seconds: 3), (_) {
+      final lastPacket = _lastSensorPacketAt;
+      final isAlive = lastPacket != null && DateTime.now().difference(lastPacket) <= _sensorTimeout;
+      if (_isConnected != isAlive) {
+        _isConnected = isAlive;
+        notifyListeners();
+      }
+    });
+  }
+
+  bool _isTimestampFresh(String timestamp) {
+    if (timestamp.trim().isEmpty) {
+      return false;
+    }
+
+    final parsed = DateTime.tryParse(timestamp.replaceFirst(' ', 'T'));
+    if (parsed == null) {
+      return false;
+    }
+
+    return DateTime.now().difference(parsed) <= _sensorTimeout;
   }
 
   // Toggle auto mode - affects both fan and light
@@ -257,6 +290,7 @@ class DashboardController extends ChangeNotifier {
     _controlSubscription?.cancel();
     _ageSubscription?.cancel();
     _emergencySubscription?.cancel();
+    _connectionWatchdog?.cancel();
     super.dispose();
   }
 }

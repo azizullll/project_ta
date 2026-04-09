@@ -20,6 +20,7 @@ class _AgeRangePageState extends State<AgeRangePage> {
   final AgeRangeController _controller = AgeRangeController();
   final DashboardController _dashboardController = DashboardController();
   Timer? _rangeSyncDebounce;
+  bool _isInitializing = true;
 
   void _handleLocalControllerChange() {
     if (!mounted) return;
@@ -27,7 +28,18 @@ class _AgeRangePageState extends State<AgeRangePage> {
   }
 
   void _handleDashboardChange() {
-    _syncAgeFromDashboard();
+    _onDashboardChangedAsync();
+  }
+
+  Future<void> _onDashboardChangedAsync() async {
+    // Avoid resetting ranges while initial mode/state is still loading.
+    if (_isInitializing) return;
+
+    final dashboardAge = _dashboardController.data.chickenAge;
+    if (dashboardAge != _controller.currentAge) {
+      _controller.setCurrentAge(dashboardAge);
+      await _loadActiveRangeForCurrentAge();
+    }
   }
 
   void _syncAgeFromDashboard() {
@@ -35,6 +47,31 @@ class _AgeRangePageState extends State<AgeRangePage> {
     if (dashboardAge != _controller.currentAge) {
       _controller.setCurrentAge(dashboardAge);
     }
+  }
+
+  Future<void> _loadActiveRangeForCurrentAge() async {
+    final age = _controller.currentAge;
+    if (_controller.autoRangeEnabled) {
+      final ranges = await AgeRangeHelper.getStoredRangeForWeek(age);
+      _controller.setRangesFromMap(ranges);
+      return;
+    }
+
+    _controller.applyDefaultRangeForAge(age);
+    await AgeRangeHelper.updateRangeForWeek(age, _controller.buildCurrentRanges());
+  }
+
+  Future<void> _initializePageState() async {
+    final isDynamicEnabled = await AgeRangeHelper.getDynamicRangeEnabled();
+    _controller.setAutoRangeEnabled(isDynamicEnabled);
+
+    _syncAgeFromDashboard();
+    await _loadActiveRangeForCurrentAge();
+
+    if (!mounted) return;
+    setState(() {
+      _isInitializing = false;
+    });
   }
 
   void _scheduleRangeSyncToFirebase() {
@@ -50,7 +87,7 @@ class _AgeRangePageState extends State<AgeRangePage> {
     super.initState();
     _controller.addListener(_handleLocalControllerChange);
     _dashboardController.addListener(_handleDashboardChange);
-    _syncAgeFromDashboard();
+    _initializePageState();
   }
 
   @override
@@ -278,6 +315,44 @@ class _AgeRangePageState extends State<AgeRangePage> {
                                         height: 1.4,
                                       ),
                                     ),
+                                    const SizedBox(height: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: _isInitializing
+                                            ? Colors.grey.shade200
+                                            : (_controller.autoRangeEnabled
+                                                ? Colors.green.shade50
+                                                : Colors.blueGrey.shade50),
+                                        borderRadius: BorderRadius.circular(999),
+                                        border: Border.all(
+                                          color: _isInitializing
+                                              ? Colors.grey.shade300
+                                              : (_controller.autoRangeEnabled
+                                                  ? Colors.green.shade200
+                                                  : Colors.blueGrey.shade200),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        _isInitializing
+                                            ? 'Mode: Memuat...'
+                                            : (_controller.autoRangeEnabled
+                                                ? 'Mode Aktif: Dinamis'
+                                                : 'Mode Aktif: Fuzzy'),
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          color: _isInitializing
+                                              ? Colors.grey.shade700
+                                              : (_controller.autoRangeEnabled
+                                                  ? Colors.green.shade700
+                                                  : Colors.blueGrey.shade700),
+                                        ),
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
@@ -285,9 +360,28 @@ class _AgeRangePageState extends State<AgeRangePage> {
                               // Toggle Switch
                               Switch(
                                 value: _controller.autoRangeEnabled,
-                                onChanged: (value) {
-                                  _controller.toggleAutoRange(value);
-                                },
+                                onChanged: _isInitializing
+                                    ? null
+                                    : (value) async {
+                                        _controller.setAutoRangeEnabled(value);
+                                        await AgeRangeHelper.setDynamicRangeEnabled(value);
+                                        await _loadActiveRangeForCurrentAge();
+
+                                        if (!mounted) return;
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              value
+                                                  ? 'Mode dinamis aktif dan tersimpan'
+                                                  : 'Mode dinamis nonaktif, kembali ke aturan fuzzy',
+                                            ),
+                                            backgroundColor: value
+                                                ? Colors.green
+                                                : Colors.blueGrey,
+                                            duration: const Duration(seconds: 2),
+                                          ),
+                                        );
+                                      },
                                 activeColor: Colors.white,
                                 activeTrackColor: Colors.orange,
                                 inactiveThumbColor: Colors.grey.shade400,
@@ -433,12 +527,7 @@ class _AgeRangePageState extends State<AgeRangePage> {
         // Update Firebase with new age
         try {
           await _dashboardController.updateChickenAge(age);
-
-          // Push selected week's active range configuration to Firebase.
-          await AgeRangeHelper.updateRangeForWeek(
-            age,
-            _controller.buildCurrentRanges(),
-          );
+          await _loadActiveRangeForCurrentAge();
           
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
