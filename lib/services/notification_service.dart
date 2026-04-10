@@ -11,6 +11,9 @@ class NotificationService {
   factory NotificationService() => _instance;
   NotificationService._internal();
 
+  static const String _androidNotificationSmallIcon = '@drawable/ic_notification';
+  static const String _androidNotificationLargeIcon = '@mipmap/ic_launcher';
+
   final DatabaseReference _database = FirebaseDatabase.instance.ref();
   final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _localNotifications =
@@ -29,7 +32,7 @@ class NotificationService {
   List<NotificationModel> get notifications =>
       List.unmodifiable(_notifications);
 
-  Future<void> initialize() async {
+  Future<void> initialize({bool includeStartupNotifications = true}) async {
     if (_isInitialized) {
       return;
     }
@@ -51,7 +54,7 @@ class NotificationService {
     }
 
     const AndroidInitializationSettings initializationSettingsAndroid =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
+      AndroidInitializationSettings(_androidNotificationSmallIcon);
 
     const DarwinInitializationSettings initializationSettingsIOS =
         DarwinInitializationSettings();
@@ -81,8 +84,25 @@ class NotificationService {
     _startMonitoring();
 
     await forceRefreshFromFirebase();
+    if (includeStartupNotifications) {
+      await _addStartupNotifications();
+    }
     _isInitialized = true;
     debugPrint('✅ NotificationService berhasil diinisialisasi');
+  }
+
+  Future<void> _addStartupNotifications() async {
+    await _addNotificationFromEvent(
+      'LCD siap terinisialisasi',
+      type: 'system',
+      severity: 'low',
+    );
+
+    await _addNotificationFromEvent(
+      'Pembacaan sensor DHT berhasil',
+      type: 'system',
+      severity: 'low',
+    );
   }
 
   Future<void> _loadNotificationsFromDb() async {
@@ -622,7 +642,8 @@ class NotificationService {
               'This channel is used for important notifications.',
           importance: Importance.high,
           priority: Priority.high,
-          icon: '@mipmap/ic_launcher',
+          icon: _androidNotificationSmallIcon,
+          largeIcon: DrawableResourceAndroidBitmap(_androidNotificationLargeIcon),
         );
 
     const DarwinNotificationDetails iOSPlatformChannelSpecifics =
@@ -655,7 +676,8 @@ class NotificationService {
           priority: Priority.high,
           playSound: true,
           enableVibration: true,
-          icon: '@mipmap/ic_launcher',
+          icon: _androidNotificationSmallIcon,
+          largeIcon: DrawableResourceAndroidBitmap(_androidNotificationLargeIcon),
         );
 
     const DarwinNotificationDetails iOSPlatformChannelSpecifics =
@@ -741,5 +763,5 @@ class NotificationService {
 // Handle background message
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   debugPrint('📱 Menerima pesan di background: ${message.notification?.title}');
-  await NotificationService().initialize();
+  await NotificationService().initialize(includeStartupNotifications: false);
 }
