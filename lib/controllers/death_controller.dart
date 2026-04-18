@@ -1,4 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 import '../models/death_model.dart';
 import '../services/death_db_helper.dart';
 
@@ -78,10 +85,87 @@ class DeathController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Export death records (placeholder)
-  void exportRecords() {
-    // Implement export logic here
-    notifyListeners();
+  Future<Directory> _resolveExportDirectory() async {
+    if (Platform.isAndroid) {
+      final downloadDir = Directory('/storage/emulated/0/Download');
+      if (await downloadDir.exists()) {
+        return downloadDir;
+      }
+
+      final externalDir = await getExternalStorageDirectory();
+      if (externalDir != null) {
+        return externalDir;
+      }
+    }
+
+    return getApplicationDocumentsDirectory();
+  }
+
+  Future<String> exportRecordsToPdf(List<DeathModel> records) async {
+    final pdf = pw.Document();
+
+    final rows = records
+        .map(
+          (record) => [
+            DateFormat('dd/MM/yyyy').format(record.dateTime),
+            DateFormat('HH:mm').format(record.dateTime),
+            record.count.toString(),
+            record.chickenAge.toString(),
+            record.cause,
+            record.notes.isEmpty ? '-' : record.notes,
+          ],
+        )
+        .toList();
+
+    final totalDeaths = records.fold<int>(
+      0,
+      (sum, record) => sum + record.count,
+    );
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        build: (context) => [
+          pw.Text(
+            'Laporan Data Kematian Ayam',
+            style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+          ),
+          pw.SizedBox(height: 8),
+          pw.Text(
+            'Tanggal export: ${DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now())}',
+          ),
+          pw.Text('Jumlah record: ${records.length}'),
+          pw.Text('Total kematian: $totalDeaths ekor'),
+          pw.SizedBox(height: 12),
+          pw.TableHelper.fromTextArray(
+            headers: const [
+              'Tanggal',
+              'Waktu',
+              'Jumlah',
+              'Umur (Minggu)',
+              'Penyebab',
+              'Catatan',
+            ],
+            data: rows,
+            headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+            headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
+            cellAlignment: pw.Alignment.centerLeft,
+            cellStyle: const pw.TextStyle(fontSize: 9),
+          ),
+        ],
+      ),
+    );
+
+    final output = await pdf.save();
+    final directory = await _resolveExportDirectory();
+    final fileName =
+        'data_kematian_${DateTime.now().millisecondsSinceEpoch}.pdf';
+    final filePath = p.join(directory.path, fileName);
+
+    final file = File(filePath);
+    await file.writeAsBytes(output, flush: true);
+
+    return filePath;
   }
 
   // Refresh data

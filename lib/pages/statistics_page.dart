@@ -32,9 +32,11 @@ class _StatisticsPageState extends State<StatisticsPage> {
     final now = DateTime.now();
     final startDate =
         _selectedDateRange?.start ??
-        DateTime(now.year, now.month, now.day).subtract(
-          const Duration(days: 6),
-        );
+        DateTime(
+          now.year,
+          now.month,
+          now.day,
+        ).subtract(const Duration(days: 6));
 
     await _controller.updateDataForRange(startDate);
   }
@@ -43,9 +45,11 @@ class _StatisticsPageState extends State<StatisticsPage> {
   void initState() {
     super.initState();
     final now = DateTime.now();
-    final start = DateTime(now.year, now.month, now.day).subtract(
-      const Duration(days: 6),
-    );
+    final start = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).subtract(const Duration(days: 6));
     final end = DateTime(now.year, now.month, now.day);
     _periodText =
         'Periode: ${DateFormat('dd/MM/yyyy').format(start)} - ${DateFormat('dd/MM/yyyy').format(end)}';
@@ -754,6 +758,8 @@ class ScatterPlotPainter extends CustomPainter {
     final chartHeight = size.height - 40; // Reserve space for labels
     final pointRadius = 6.0;
     final spacing = size.width / (dateLabels.length - 1);
+    const overlapThreshold = 0.05;
+    const overlapOffset = 3.0;
 
     // Draw grid lines
     final gridPaint = Paint()
@@ -803,8 +809,12 @@ class ScatterPlotPainter extends CustomPainter {
 
     // Draw points for data1
     for (int i = 0; i < data1.length; i++) {
-      final x = i * spacing;
-      final y = chartHeight - (data1[i] / maxValue * chartHeight);
+      final hasOverlap = (data1[i] - data2[i]).abs() <= overlapThreshold;
+      final x = i * spacing + (hasOverlap ? -overlapOffset : 0);
+      final y =
+          chartHeight -
+          (data1[i] / maxValue * chartHeight) +
+          (hasOverlap ? -overlapOffset : 0);
 
       // Shadow
       canvas.drawCircle(
@@ -826,8 +836,12 @@ class ScatterPlotPainter extends CustomPainter {
 
     // Draw points for data2
     for (int i = 0; i < data2.length; i++) {
-      final x = i * spacing;
-      final y = chartHeight - (data2[i] / maxValue * chartHeight);
+      final hasOverlap = (data1[i] - data2[i]).abs() <= overlapThreshold;
+      final x = i * spacing + (hasOverlap ? overlapOffset : 0);
+      final y =
+          chartHeight -
+          (data2[i] / maxValue * chartHeight) +
+          (hasOverlap ? overlapOffset : 0);
 
       // Shadow
       canvas.drawCircle(

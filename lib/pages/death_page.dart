@@ -146,8 +146,48 @@ class _DeathPageState extends State<DeathPage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.download, color: Colors.black),
-            onPressed: () {
-              _controller.exportRecords();
+            onPressed: () async {
+              if (filteredRecords.isEmpty) {
+                if (!mounted) {
+                  return;
+                }
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Tidak ada data kematian untuk diunduh'),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+                return;
+              }
+
+              try {
+                final filePath = await _controller.exportRecordsToPdf(
+                  filteredRecords,
+                );
+
+                if (!mounted) {
+                  return;
+                }
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('PDF tersimpan: $filePath'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              } catch (e) {
+                if (!mounted) {
+                  return;
+                }
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Gagal export PDF: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
             },
           ),
         ],
@@ -580,8 +620,10 @@ class _DeathPageState extends State<DeathPage> {
 
   Widget _buildDataList(List<DeathModel> filteredRecords) {
     final startIndex = (_currentPage - 1) * _controller.itemsPerPage;
-    final endIndex =
-        (startIndex + _controller.itemsPerPage).clamp(0, filteredRecords.length);
+    final endIndex = (startIndex + _controller.itemsPerPage).clamp(
+      0,
+      filteredRecords.length,
+    );
 
     final records = startIndex >= filteredRecords.length
         ? <DeathModel>[]
@@ -645,7 +687,11 @@ class _DeathPageState extends State<DeathPage> {
               const SizedBox(height: 10),
               Row(
                 children: [
-                  Icon(Icons.access_time, size: 16, color: Colors.grey.shade600),
+                  Icon(
+                    Icons.access_time,
+                    size: 16,
+                    color: Colors.grey.shade600,
+                  ),
                   const SizedBox(width: 6),
                   Text(
                     DateFormat('dd MMM yyyy, HH:mm').format(record.dateTime),
